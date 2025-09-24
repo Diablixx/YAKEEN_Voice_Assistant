@@ -1,0 +1,856 @@
+{
+  "workflows": [
+    {
+      "name": "Voice Assistant - Email Sender",
+      "description": "Send emails based on voice commands",
+      "nodes": [
+        {
+          "parameters": {
+            "path": "voice-email",
+            "options": {}
+          },
+          "id": "webhook-email",
+          "name": "Voice Email Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "position": [240, 300],
+          "webhookId": "voice-email"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Extract email details from voice command\nconst text = $input.first().json.text.toLowerCase();\n\n// Simple parsing logic - you can enhance this\nlet toEmail = '';\nlet subject = '';\nlet body = '';\n\n// Pattern: \"send email to [person] about [subject] saying [message]\"\nconst emailPattern = /send (?:email|mail) to ([^\\s]+)(?:\\s+about\\s+([^\\s]+(?:\\s+[^\\s]+)*?))?(?:\\s+saying\\s+(.+))?/i;\nconst match = text.match(emailPattern);\n\nif (match) {\n  toEmail = match[1] + '@company.com'; // Add your domain\n  subject = match[2] || 'Voice Message';\n  body = match[3] || 'Sent via voice assistant';\n} else {\n  // Fallback parsing\n  if (text.includes('to ')) {\n    toEmail = text.split('to ')[1].split(' ')[0] + '@company.com';\n  }\n  subject = 'Voice Command';\n  body = text;\n}\n\nreturn {\n  toEmail,\n  subject,\n  body,\n  originalText: $input.first().json.text\n};"
+          },
+          "id": "parse-email",
+          "name": "Parse Email Command",
+          "type": "n8n-nodes-base.code",
+          "position": [460, 300]
+        },
+        {
+          "parameters": {
+            "sendTo": "={{ $json.toEmail }}",
+            "subject": "={{ $json.subject }}",
+            "message": "={{ $json.body }}",
+            "options": {}
+          },
+          "id": "gmail-send",
+          "name": "Send Gmail",
+          "type": "n8n-nodes-base.gmail",
+          "position": [680, 300]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\n  \"text\": \"Email sent to {{ $json.toEmail }} with subject {{ $json.subject }}\"\n}"
+          },
+          "id": "respond-email",
+          "name": "Email Response",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "position": [900, 300]
+        }
+      ],
+      "connections": {
+        "Voice Email Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Email Command",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Email Command": {
+          "main": [
+            [
+              {
+                "node": "Send Gmail",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Send Gmail": {
+          "main": [
+            [
+              {
+                "node": "Email Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Voice Assistant - Note Taker",
+      "description": "Create and store notes from voice commands",
+      "nodes": [
+        {
+          "parameters": {
+            "path": "voice-notes",
+            "options": {}
+          },
+          "id": "webhook-notes",
+          "name": "Voice Notes Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "position": [240, 300],
+          "webhookId": "voice-notes"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Process voice command for note taking\nconst text = $input.first().json.text;\nconst timestamp = new Date().toISOString();\n\n// Extract note content\nlet noteContent = text;\nlet noteTitle = 'Voice Note';\nlet tags = [];\n\n// Pattern: \"create note about [title] saying [content]\"\nconst notePattern = /(?:create|make|add)\\s+(?:a\\s+)?note\\s+(?:about\\s+([^\\s]+(?:\\s+[^\\s]+)*?)\\s+)?(?:saying\\s+(.+))?/i;\nconst match = text.match(notePattern);\n\nif (match) {\n  if (match[1]) noteTitle = match[1];\n  if (match[2]) noteContent = match[2];\n} else if (text.toLowerCase().includes('note')) {\n  // Simple fallback - everything after \"note\" is content\n  const noteIndex = text.toLowerCase().indexOf('note');\n  noteContent = text.substring(noteIndex + 4).trim();\n}\n\n// Extract hashtags as tags\nconst hashtagPattern = /#(\\w+)/g;\nlet hashtagMatch;\nwhile ((hashtagMatch = hashtagPattern.exec(text)) !== null) {\n  tags.push(hashtagMatch[1]);\n}\n\nreturn {\n  title: noteTitle,\n  content: noteContent,\n  tags: tags,\n  timestamp: timestamp,\n  source: 'voice',\n  originalText: text\n};"
+          },
+          "id": "parse-note",
+          "name": "Parse Note Command",
+          "type": "n8n-nodes-base.code",
+          "position": [460, 300]
+        },
+        {
+          "parameters": {
+            "resource": "document",
+            "operation": "create",
+            "documentId": "={{ $json.timestamp.replace(/[:.]/g, '-') }}",
+            "simple": false,
+            "updateFields": {
+              "title": "={{ $json.title }}",
+              "body": "={{ $json.content }}",
+              "tags": "={{ $json.tags.join(', ') }}"
+            }
+          },
+          "id": "google-docs",
+          "name": "Save to Google Docs",
+          "type": "n8n-nodes-base.googleDocs",
+          "position": [680, 200]
+        },
+        {
+          "parameters": {
+            "operation": "create",
+            "resource": "database",
+            "databaseId": "your-notion-database-id",
+            "simple": false,
+            "properties": {
+              "title": {
+                "type": "title",
+                "title": [
+                  {
+                    "text": {
+                      "content": "={{ $json.title }}"
+                    }
+                  }
+                ]
+              },
+              "content": {
+                "type": "rich_text",
+                "rich_text": [
+                  {
+                    "text": {
+                      "content": "={{ $json.content }}"
+                    }
+                  }
+                ]
+              },
+              "tags": {
+                "type": "multi_select",
+                "multi_select": "={{ $json.tags.map(tag => ({ name: tag })) }}"
+              },
+              "source": {
+                "type": "select",
+                "select": {
+                  "name": "voice"
+                }
+              }
+            }
+          },
+          "id": "notion",
+          "name": "Save to Notion",
+          "type": "n8n-nodes-base.notion",
+          "position": [680, 400]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\n  \"text\": \"Note created: {{ $json.title }}. Saved to both Google Docs and Notion.\"\n}"
+          },
+          "id": "respond-note",
+          "name": "Note Response",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "position": [900, 300]
+        }
+      ],
+      "connections": {
+        "Voice Notes Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Note Command",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Note Command": {
+          "main": [
+            [
+              {
+                "node": "Save to Google Docs",
+                "type": "main",
+                "index": 0
+              },
+              {
+                "node": "Save to Notion",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Save to Google Docs": {
+          "main": [
+            [
+              {
+                "node": "Note Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Save to Notion": {
+          "main": [
+            [
+              {
+                "node": "Note Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Voice Assistant - Message Sender",
+      "description": "Send messages to various platforms based on voice commands",
+      "nodes": [
+        {
+          "parameters": {
+            "path": "voice-messages",
+            "options": {}
+          },
+          "id": "webhook-messages",
+          "name": "Voice Messages Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "position": [240, 300],
+          "webhookId": "voice-messages"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Parse voice command for message sending\nconst text = $input.first().json.text.toLowerCase();\n\nlet platform = 'unknown';\nlet recipient = '';\nlet message = '';\n\n// Detect platform\nif (text.includes('slack')) platform = 'slack';\nelse if (text.includes('telegram')) platform = 'telegram';\nelse if (text.includes('whatsapp')) platform = 'whatsapp';\nelse if (text.includes('sms') || text.includes('text')) platform = 'sms';\n\n// Pattern: \"send [platform] message to [recipient] saying [message]\"\nconst messagePattern = /send\\s+(?:(slack|telegram|whatsapp|sms|text)\\s+)?message\\s+to\\s+([^\\s]+(?:\\s+[^\\s]+)*)\\s+saying\\s+(.+)/i;\nconst match = text.match(messagePattern);\n\nif (match) {\n  if (match[1]) platform = match[1];\n  recipient = match[2];\n  message = match[3];\n} else {\n  // Fallback parsing\n  const parts = text.split(' saying ');\n  if (parts.length > 1) {\n    message = parts[1];\n    const beforeSaying = parts[0];\n    const toIndex = beforeSaying.lastIndexOf(' to ');\n    if (toIndex > -1) {\n      recipient = beforeSaying.substring(toIndex + 4);\n    }\n  }\n}\n\nreturn {\n  platform: platform,\n  recipient: recipient,\n  message: message,\n  originalText: $input.first().json.text\n};"
+          },
+          "id": "parse-message",
+          "name": "Parse Message Command",
+          "type": "n8n-nodes-base.code",
+          "position": [460, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.platform }}",
+                  "operation": "equal",
+                  "value2": "slack"
+                }
+              ]
+            }
+          },
+          "id": "is-slack",
+          "name": "Is Slack?",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 200]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.platform }}",
+                  "operation": "equal",
+                  "value2": "telegram"
+                }
+              ]
+            }
+          },
+          "id": "is-telegram",
+          "name": "Is Telegram?",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 400]
+        },
+        {
+          "parameters": {
+            "resource": "message",
+            "operation": "post",
+            "channel": "={{ $json.recipient }}",
+            "text": "={{ $json.message }}",
+            "otherOptions": {}
+          },
+          "id": "slack-message",
+          "name": "Send Slack Message",
+          "type": "n8n-nodes-base.slack",
+          "position": [900, 200]
+        },
+        {
+          "parameters": {
+            "resource": "message",
+            "operation": "sendMessage",
+            "chatId": "={{ $json.recipient }}",
+            "text": "={{ $json.message }}"
+          },
+          "id": "telegram-message",
+          "name": "Send Telegram Message",
+          "type": "n8n-nodes-base.telegram",
+          "position": [900, 400]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\n  \"text\": \"Message sent via {{ $json.platform }} to {{ $json.recipient }}\"\n}"
+          },
+          "id": "respond-message",
+          "name": "Message Response",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "position": [1120, 300]
+        }
+      ],
+      "connections": {
+        "Voice Messages Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Message Command",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Message Command": {
+          "main": [
+            [
+              {
+                "node": "Is Slack?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Is Slack?": {
+          "main": [
+            [
+              {
+                "node": "Send Slack Message",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Is Telegram?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Is Telegram?": {
+          "main": [
+            [
+              {
+                "node": "Send Telegram Message",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Message Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Send Slack Message": {
+          "main": [
+            [
+              {
+                "node": "Message Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Send Telegram Message": {
+          "main": [
+            [
+              {
+                "node": "Message Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Voice Assistant - Calendar Manager",
+      "description": "Manage calendar events through voice commands",
+      "nodes": [
+        {
+          "parameters": {
+            "path": "voice-calendar",
+            "options": {}
+          },
+          "id": "webhook-calendar",
+          "name": "Voice Calendar Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "position": [240, 300],
+          "webhookId": "voice-calendar"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Parse calendar commands\nconst text = $input.first().json.text.toLowerCase();\n\nlet action = 'unknown';\nlet title = '';\nlet when = '';\nlet duration = '1 hour';\n\n// Detect action\nif (text.includes('schedule') || text.includes('create') || text.includes('add')) {\n  action = 'create';\n} else if (text.includes('what') || text.includes('check')) {\n  action = 'list';\n}\n\n// Pattern: \"schedule [event] for [time/day]\"\nconst schedulePattern = /(?:schedule|create|add)\\s+(?:a\\s+)?(?:meeting|event|appointment)?\\s*(?:with\\s+([^\\s]+(?:\\s+[^\\s]+)*?))?\\s+(?:about\\s+|titled\\s+|for\\s+)?([^\\s]+(?:\\s+[^\\s]+)*?)\\s+(?:on\\s+|for\\s+|at\\s+)(.+)/i;\nconst listPattern = /what(?:'s|\\s+is)?\\s+(?:on\\s+my\\s+calendar|my\\s+schedule)\\s*(?:for\\s+(.+))?/i;\n\nlet scheduleMatch = text.match(schedulePattern);\nlet listMatch = text.match(listPattern);\n\nif (scheduleMatch && action === 'create') {\n  title = scheduleMatch[2] || 'Voice Scheduled Event';\n  when = scheduleMatch[3];\n  if (scheduleMatch[1]) title = scheduleMatch[2] + ' with ' + scheduleMatch[1];\n} else if (listMatch && action === 'list') {\n  when = listMatch[1] || 'today';\n}\n\n// Parse relative dates\nconst now = new Date();\nlet eventDate = new Date(now);\n\nif (when.includes('tomorrow')) {\n  eventDate.setDate(now.getDate() + 1);\n} else if (when.includes('next week')) {\n  eventDate.setDate(now.getDate() + 7);\n} else if (when.includes('monday')) {\n  // Find next Monday\n  const daysUntilMonday = (1 + 7 - now.getDay()) % 7;\n  eventDate.setDate(now.getDate() + (daysUntilMonday || 7));\n}\n\n// Extract time if present\nconst timePattern = /(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?/i;\nconst timeMatch = when.match(timePattern);\nif (timeMatch) {\n  let hours = parseInt(timeMatch[1]);\n  const minutes = parseInt(timeMatch[2]) || 0;\n  const ampm = timeMatch[3];\n  \n  if (ampm && ampm.toLowerCase() === 'pm' && hours < 12) hours += 12;\n  if (ampm && ampm.toLowerCase() === 'am' && hours === 12) hours = 0;\n  \n  eventDate.setHours(hours, minutes, 0, 0);\n}\n\nreturn {\n  action: action,\n  title: title,\n  startDateTime: eventDate.toISOString(),\n  endDateTime: new Date(eventDate.getTime() + 60 * 60 * 1000).toISOString(), // 1 hour later\n  originalText: $input.first().json.text,\n  parsedWhen: when\n};"
+          },
+          "id": "parse-calendar",
+          "name": "Parse Calendar Command",
+          "type": "n8n-nodes-base.code",
+          "position": [460, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.action }}",
+                  "operation": "equal",
+                  "value2": "create"
+                }
+              ]
+            }
+          },
+          "id": "is-create",
+          "name": "Is Create Event?",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 300]
+        },
+        {
+          "parameters": {
+            "resource": "event",
+            "operation": "create",
+            "calendarId": "primary",
+            "start": "={{ $json.startDateTime }}",
+            "end": "={{ $json.endDateTime }}",
+            "summary": "={{ $json.title }}",
+            "description": "Created via voice assistant"
+          },
+          "id": "create-event",
+          "name": "Create Calendar Event",
+          "type": "n8n-nodes-base.googleCalendar",
+          "position": [900, 200]
+        },
+        {
+          "parameters": {
+            "resource": "event",
+            "operation": "getAll",
+            "calendarId": "primary",
+            "start": "={{ $json.startDateTime }}",
+            "end": "={{ new Date(new Date($json.startDateTime).getTime() + 24*60*60*1000).toISOString() }}",
+            "options": {}
+          },
+          "id": "list-events",
+          "name": "List Calendar Events",
+          "type": "n8n-nodes-base.googleCalendar",
+          "position": [900, 400]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\n  \"text\": \"{{ $json.action === 'create' ? 'Event created: ' + $json.title : 'Here are your events: ' + $json.map(e => e.summary).join(', ') }}\"\n}"
+          },
+          "id": "respond-calendar",
+          "name": "Calendar Response",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "position": [1120, 300]
+        }
+      ],
+      "connections": {
+        "Voice Calendar Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Calendar Command",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Calendar Command": {
+          "main": [
+            [
+              {
+                "node": "Is Create Event?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Is Create Event?": {
+          "main": [
+            [
+              {
+                "node": "Create Calendar Event",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "List Calendar Events",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Create Calendar Event": {
+          "main": [
+            [
+              {
+                "node": "Calendar Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "List Calendar Events": {
+          "main": [
+            [
+              {
+                "node": "Calendar Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "name": "Voice Assistant - Universal Handler",
+      "description": "A single workflow that handles multiple types of voice commands",
+      "nodes": [
+        {
+          "parameters": {
+            "path": "voice-universal",
+            "options": {}
+          },
+          "id": "webhook-universal",
+          "name": "Universal Voice Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "position": [240, 300],
+          "webhookId": "voice-universal"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Universal voice command parser\nconst text = $input.first().json.text.toLowerCase();\n\n// Determine command type\nlet commandType = 'unknown';\nlet confidence = 0;\n\nconst commands = {\n  email: ['send email', 'send mail', 'email'],\n  note: ['create note', 'make note', 'add note', 'note'],\n  message: ['send message', 'message', 'slack', 'telegram'],\n  calendar: ['schedule', 'calendar', 'meeting', 'appointment'],\n  reminder: ['remind me', 'reminder', 'remind'],\n  weather: ['weather', 'temperature', 'forecast'],\n  news: ['news', 'headlines', 'what happened'],\n  time: ['what time', 'current time', 'time'],\n  help: ['help', 'what can you do', 'commands']\n};\n\n// Find best match\nfor (const [type, keywords] of Object.entries(commands)) {\n  for (const keyword of keywords) {\n    if (text.includes(keyword)) {\n      const currentConfidence = keyword.length / text.length;\n      if (currentConfidence > confidence) {\n        commandType = type;\n        confidence = currentConfidence;\n      }\n    }\n  }\n}\n\nreturn {\n  commandType: commandType,\n  confidence: confidence,\n  originalText: $input.first().json.text,\n  processedText: text\n};"
+          },
+          "id": "classify-command",
+          "name": "Classify Voice Command",
+          "type": "n8n-nodes-base.code",
+          "position": [460, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.commandType }}",
+                  "operation": "equal",
+                  "value2": "email"
+                }
+              ]
+            }
+          },
+          "id": "route-email",
+          "name": "Route Email",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 100]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.commandType }}",
+                  "operation": "equal",
+                  "value2": "note"
+                }
+              ]
+            }
+          },
+          "id": "route-note",
+          "name": "Route Note",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 200]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.commandType }}",
+                  "operation": "equal",
+                  "value2": "time"
+                }
+              ]
+            }
+          },
+          "id": "route-time",
+          "name": "Route Time",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 300]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "string": [
+                {
+                  "value1": "={{ $json.commandType }}",
+                  "operation": "equal",
+                  "value2": "help"
+                }
+              ]
+            }
+          },
+          "id": "route-help",
+          "name": "Route Help",
+          "type": "n8n-nodes-base.if",
+          "position": [680, 400]
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://your-n8n-instance.com/webhook/voice-email",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ $json }}"
+          },
+          "id": "call-email-workflow",
+          "name": "Call Email Workflow",
+          "type": "n8n-nodes-base.httpRequest",
+          "position": [900, 100]
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "https://your-n8n-instance.com/webhook/voice-notes",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ $json }}"
+          },
+          "id": "call-note-workflow",
+          "name": "Call Note Workflow",
+          "type": "n8n-nodes-base.httpRequest",
+          "position": [900, 200]
+        },
+        {
+          "parameters": {
+            "jsCode": "// Return current time\nconst now = new Date();\nconst timeString = now.toLocaleTimeString('en-US', {\n  hour: 'numeric',\n  minute: '2-digit',\n  hour12: true\n});\nconst dateString = now.toLocaleDateString('en-US', {\n  weekday: 'long',\n  year: 'numeric',\n  month: 'long',\n  day: 'numeric'\n});\n\nreturn {\n  text: `It is currently ${timeString} on ${dateString}`\n};"
+          },
+          "id": "get-time",
+          "name": "Get Current Time",
+          "type": "n8n-nodes-base.code",
+          "position": [900, 300]
+        },
+        {
+          "parameters": {
+            "jsCode": "// Return help information\nconst helpText = `I can help you with:\\n\\n` +\n  `📧 Email: \"Send email to John about the meeting\"\\n` +\n  `📝 Notes: \"Create note about project ideas\"\\n` +\n  `💬 Messages: \"Send Slack message to team\"\\n` +\n  `📅 Calendar: \"Schedule meeting with Sarah tomorrow\"\\n` +\n  `⏰ Time: \"What time is it?\"\\n` +\n  `❓ Help: \"What can you do?\"\\n\\n` +\n  `Just speak naturally and I'll understand!`;\n\nreturn {\n  text: helpText\n};"
+          },
+          "id": "get-help",
+          "name": "Get Help",
+          "type": "n8n-nodes-base.code",
+          "position": [900, 400]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\n  \"text\": \"{{ $json.text || 'I processed your command: ' + $json.originalText }}\"\n}"
+          },
+          "id": "respond-universal",
+          "name": "Universal Response",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "position": [1120, 300]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={\n  \"text\": \"I'm not sure how to handle: {{ $json.originalText }}. Try saying 'help' to see what I can do.\"\n}"
+          },
+          "id": "unknown-command",
+          "name": "Unknown Command",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "position": [900, 500]
+        }
+      ],
+      "connections": {
+        "Universal Voice Webhook": {
+          "main": [
+            [
+              {
+                "node": "Classify Voice Command",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Classify Voice Command": {
+          "main": [
+            [
+              {
+                "node": "Route Email",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Route Email": {
+          "main": [
+            [
+              {
+                "node": "Call Email Workflow",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Route Note",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Route Note": {
+          "main": [
+            [
+              {
+                "node": "Call Note Workflow",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Route Time",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Route Time": {
+          "main": [
+            [
+              {
+                "node": "Get Current Time",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Route Help",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Route Help": {
+          "main": [
+            [
+              {
+                "node": "Get Help",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Unknown Command",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Call Email Workflow": {
+          "main": [
+            [
+              {
+                "node": "Universal Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Call Note Workflow": {
+          "main": [
+            [
+              {
+                "node": "Universal Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Current Time": {
+          "main": [
+            [
+              {
+                "node": "Universal Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Help": {
+          "main": [
+            [
+              {
+                "node": "Universal Response",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}

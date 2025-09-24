@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Voice Assistant</title>
+
+    <!-- PWA Configuration -->
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Voice Assistant">
+
+    <!-- Icons -->
+    <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="css/styles.css" as="style">
+    <link rel="preload" href="js/main.js" as="script">
+
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <h1>Voice Assistant</h1>
+            <div class="status-indicator" id="status">Ready</div>
+        </header>
+
+        <!-- Main Voice Interface -->
+        <main class="main-content">
+            <!-- Voice Visualization -->
+            <div class="voice-visualizer" id="voiceVisualizer">
+                <div class="voice-circle">
+                    <div class="voice-pulse"></div>
+                    <div class="voice-core"></div>
+                </div>
+            </div>
+
+            <!-- Voice Level Indicator -->
+            <div class="voice-level-container">
+                <div class="voice-level-bar" id="voiceLevelBar"></div>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <button class="control-btn" id="toggleListening">
+                    <span id="listeningText">Start Listening</span>
+                </button>
+                <button class="control-btn secondary" id="settingsBtn">Settings</button>
+            </div>
+        </main>
+
+        <!-- Settings Panel (Hidden by default) -->
+        <div class="settings-panel" id="settingsPanel">
+            <div class="settings-content">
+                <h2>Settings</h2>
+
+                <div class="setting-group">
+                    <label for="n8nUrl">n8n Webhook URL:</label>
+                    <input type="url" id="n8nUrl" placeholder="https://your-n8n-instance.com/webhook/voice">
+                </div>
+
+                <div class="setting-group">
+                    <label for="voiceSpeed">Voice Speed:</label>
+                    <input type="range" id="voiceSpeed" min="0.5" max="2" step="0.1" value="1">
+                    <span id="speedValue">1.0x</span>
+                </div>
+
+                <div class="setting-group">
+                    <label for="voicePitch">Voice Pitch:</label>
+                    <input type="range" id="voicePitch" min="0" max="2" step="0.1" value="1">
+                    <span id="pitchValue">1.0</span>
+                </div>
+
+                <div class="setting-buttons">
+                    <button class="control-btn" id="saveSettings">Save</button>
+                    <button class="control-btn secondary" id="closeSettings">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="loading-spinner"></div>
+            <div class="loading-text" id="loadingText">Processing...</div>
+        </div>
+
+        <!-- Debug Panel (for development) -->
+        <div class="debug-panel" id="debugPanel">
+            <div class="debug-content">
+                <h3>Debug Info</h3>
+                <div id="debugLog"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/voice.js"></script>
+    <script src="js/n8n.js"></script>
+    <script src="js/ios-optimizations.js"></script>
+    <script src="js/main.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('SW registered: ', registration);
+                        Utils?.log('Service Worker registered successfully');
+                    })
+                    .catch((registrationError) => {
+                        console.log('SW registration failed: ', registrationError);
+                        Utils?.log(`Service Worker registration failed: ${registrationError.message}`, 'error');
+                    });
+            });
+        }
+    </script>
+</body>
+</html>

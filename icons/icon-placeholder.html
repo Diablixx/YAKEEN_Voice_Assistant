@@ -1,0 +1,112 @@
+<!-- PWA Icon Placeholder Generator -->
+<!-- This HTML file can be opened in browser to generate icon placeholders -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Generate PWA Icons</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .icon-generator { margin: 20px 0; }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>PWA Icon Generator</h1>
+    <p>This will generate placeholder icons for the PWA. Run this in a browser and download the generated icons.</p>
+
+    <div class="icon-generator">
+        <button onclick="generateIcons()">Generate Icons</button>
+        <div id="canvasContainer"></div>
+    </div>
+
+    <script>
+        function generateIcon(size, filename) {
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+            gradient.addColorStop(0, '#00ff88');
+            gradient.addColorStop(0.7, '#00cc66');
+            gradient.addColorStop(1, '#008844');
+
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Add microphone icon (simplified)
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = Math.max(2, size / 32);
+
+            // Microphone body
+            const micWidth = size * 0.2;
+            const micHeight = size * 0.3;
+            const centerX = size / 2;
+            const centerY = size / 2 - size * 0.05;
+
+            ctx.beginPath();
+            ctx.roundRect(centerX - micWidth/2, centerY - micHeight/2, micWidth, micHeight, micWidth/4);
+            ctx.fill();
+
+            // Microphone stand
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY + micHeight/2);
+            ctx.lineTo(centerX, centerY + micHeight/2 + size * 0.15);
+            ctx.stroke();
+
+            // Base
+            ctx.beginPath();
+            ctx.moveTo(centerX - size * 0.08, centerY + micHeight/2 + size * 0.15);
+            ctx.lineTo(centerX + size * 0.08, centerY + micHeight/2 + size * 0.15);
+            ctx.stroke();
+
+            // Voice waves
+            for (let i = 1; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.arc(centerX + micWidth/2 + size * 0.05, centerY, size * 0.06 * i, -Math.PI/3, Math.PI/3, false);
+                ctx.stroke();
+            }
+
+            return canvas;
+        }
+
+        function generateIcons() {
+            const container = document.getElementById('canvasContainer');
+            container.innerHTML = '';
+
+            const sizes = [16, 32, 180, 192, 512];
+            const filenames = ['favicon-16x16.png', 'favicon-32x32.png', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png'];
+
+            sizes.forEach((size, index) => {
+                const canvas = generateIcon(size, filenames[index]);
+                container.appendChild(canvas);
+
+                // Add download link
+                const link = document.createElement('a');
+                link.download = filenames[index];
+                link.href = canvas.toDataURL();
+                link.textContent = `Download ${filenames[index]} (${size}x${size})`;
+                link.style.display = 'block';
+                link.style.margin = '10px';
+                container.appendChild(link);
+            });
+        }
+
+        // Add roundRect support for older browsers
+        if (!CanvasRenderingContext2D.prototype.roundRect) {
+            CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+                this.beginPath();
+                this.moveTo(x + radius, y);
+                this.arcTo(x + width, y, x + width, y + height, radius);
+                this.arcTo(x + width, y + height, x, y + height, radius);
+                this.arcTo(x, y + height, x, y, radius);
+                this.arcTo(x, y, x + width, y, radius);
+                this.closePath();
+            };
+        }
+    </script>
+</body>
+</html>

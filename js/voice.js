@@ -169,15 +169,21 @@ class VoiceProcessor {
 
             this.updateStatus('ready');
 
-            // Auto-restart if configured for continuous listening and not currently processing
+            // Auto-restart if configured for continuous listening and safe to do so
             if (window.configManager?.get('autoListen') && !this.isSpeaking) {
                 Utils.log('Auto-restarting speech recognition...');
                 setTimeout(() => {
-                    // Double-check we're still not speaking and not already listening
-                    if (!this.isSpeaking && !this.isListening) {
+                    // Triple-check: not speaking, not listening, and synthesis is not active
+                    if (!this.isSpeaking &&
+                        !this.isListening &&
+                        !this.synthesis.speaking &&
+                        !this.synthesis.pending) {
+                        Utils.log('Safe to restart recognition');
                         this.startListening();
+                    } else {
+                        Utils.log('Not safe to restart recognition - speech synthesis still active');
                     }
-                }, 1500); // Slightly longer delay to avoid rapid restarts
+                }, 3000); // Increased to 3 seconds for maximum safety
             }
         };
     }
@@ -229,6 +235,24 @@ class VoiceProcessor {
         for (const pattern of noisePatterns) {
             if (pattern.test(cleanText)) {
                 Utils.log(`Speech matches noise pattern: "${cleanText}"`);
+                return false;
+            }
+        }
+
+        // Filter out AI response patterns to prevent feedback loops
+        const aiResponsePatterns = [
+            /^(my name is|i am|i'm|hello[!,.\s]* i'm|hi[!,.\s]* i'm)/i,
+            /^(i'm here and ready|how can i help|how can i assist)/i,
+            /^(sorry[!,.\s]* i|i apologize|i don't understand)/i,
+            /^(i'm an ai|i'm a language model|as an ai)/i,
+            /^(let me help|i can help|here's what i)/i,
+            /^(based on|according to|i think|in my opinion)/i,
+            /^(thank you for|thanks for asking|you're welcome)/i
+        ];
+
+        for (const pattern of aiResponsePatterns) {
+            if (pattern.test(cleanText)) {
+                Utils.log(`Speech matches AI response pattern, likely feedback: "${cleanText}"`);
                 return false;
             }
         }
@@ -329,6 +353,9 @@ class VoiceProcessor {
 
         return new Promise((resolve, reject) => {
             try {
+                // CRITICAL: Stop speech recognition immediately to prevent feedback loop
+                this.stopListening();
+
                 // Cancel any ongoing speech
                 this.stopSpeaking();
 
@@ -339,6 +366,13 @@ class VoiceProcessor {
 
                 this.currentUtterance.onstart = () => {
                     Utils.log(`Starting to speak: ${text.substring(0, 50)}...`);
+
+                    // Double-check that recognition is stopped
+                    if (this.isListening) {
+                        Utils.log('Force stopping recognition during speech start');
+                        this.stopListening();
+                    }
+
                     this.isSpeaking = true;
                     this.updateStatus('speaking');
                 };
@@ -348,12 +382,13 @@ class VoiceProcessor {
                     this.isSpeaking = false;
                     this.updateStatus('ready');
 
-                    // Auto-restart listening if configured
+                    // Auto-restart listening with longer delay to prevent feedback
                     setTimeout(() => {
-                        if (window.configManager?.get('autoListen') && !this.isListening) {
+                        if (window.configManager?.get('autoListen') && !this.isListening && !this.isSpeaking) {
+                            Utils.log('Auto-restarting recognition after speech ended');
                             this.startListening();
                         }
-                    }, 500);
+                    }, 2000); // Increased delay to 2 seconds for safety
 
                     resolve(true);
                 };
@@ -362,6 +397,14 @@ class VoiceProcessor {
                     Utils.log(`Speech synthesis error: ${event.error}`, 'error');
                     this.isSpeaking = false;
                     this.updateStatus('ready');
+
+                    // Restart listening after error if configured
+                    setTimeout(() => {
+                        if (window.configManager?.get('autoListen') && !this.isListening) {
+                            this.startListening();
+                        }
+                    }, 1000);
+
                     reject(new Error(`Speech synthesis error: ${event.error}`));
                 };
 
@@ -379,11 +422,25 @@ class VoiceProcessor {
      * Stop speaking
      */
     stopSpeaking() {
-        if (this.synthesis.speaking) {
+        try {
+            // Cancel all speech synthesis
             this.synthesis.cancel();
+
+            // Force clear the synthesis queue
+            if (this.synthesis.pending) {
+                this.synthesis.cancel();
+            }
+
+            // Reset state
+            this.isSpeaking = false;
+            this.currentUtterance = null;
+
+            Utils.log('Speech synthesis stopped and cleared');
+        } catch (error) {
+            Utils.log(`Error stopping speech synthesis: ${Utils.getErrorMessage(error)}`, 'error');
+            this.isSpeaking = false;
+            this.currentUtterance = null;
         }
-        this.isSpeaking = false;
-        this.currentUtterance = null;
     }
 
     /**

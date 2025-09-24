@@ -18,6 +18,8 @@ class VoiceProcessor {
         // Speech recognition settings
         this.silenceThreshold = 2000; // 2 seconds of silence to stop
         this.minSpeechDuration = 500; // Minimum speech duration
+        this.minSpeechLength = 3; // Minimum characters for valid speech
+        this.minWordCount = 1; // Minimum words for valid speech
         this.lastSpeechTime = 0;
         this.speechStartTime = 0;
         this.silenceTimeout = null;
@@ -93,29 +95,40 @@ class VoiceProcessor {
                 }
             }
 
-            // Update speech timing
-            this.lastSpeechTime = Date.now();
-            if (!this.speechStartTime && (finalTranscript || interimTranscript)) {
-                this.speechStartTime = Date.now();
+            // Update speech timing only if we have meaningful content
+            const hasContent = finalTranscript.trim() || interimTranscript.trim();
+            if (hasContent) {
+                this.lastSpeechTime = Date.now();
+                if (!this.speechStartTime) {
+                    this.speechStartTime = Date.now();
+                }
             }
 
             // Clear existing silence timeout
             if (this.silenceTimeout) {
                 clearTimeout(this.silenceTimeout);
+                this.silenceTimeout = null;
             }
 
-            // If we have final results, process them
+            // Process final results only if they pass validation
             if (finalTranscript.trim()) {
-                Utils.log(`Final transcript: ${finalTranscript}`);
-                this.processFinalResult(finalTranscript.trim());
+                const cleanText = finalTranscript.trim();
+                Utils.log(`Final transcript received: "${cleanText}"`);
+
+                if (this.isValidSpeech(cleanText)) {
+                    Utils.log(`Valid speech detected, processing: "${cleanText}"`);
+                    this.processFinalResult(cleanText);
+                } else {
+                    Utils.log(`Invalid speech ignored: "${cleanText}"`);
+                }
 
                 // Reset for next input
                 finalTranscript = '';
                 this.speechStartTime = 0;
             }
 
-            // Set silence timeout for interim results
-            if (interimTranscript.trim() || finalTranscript.trim()) {
+            // Only set silence timeout if we have meaningful interim results
+            if (interimTranscript.trim() && this.isValidSpeech(interimTranscript.trim())) {
                 this.silenceTimeout = setTimeout(() => {
                     this.handleSilenceDetected();
                 }, this.silenceThreshold);
@@ -125,12 +138,19 @@ class VoiceProcessor {
         this.recognition.onerror = (event) => {
             Utils.log(`Speech recognition error: ${event.error}`, 'error');
 
+            // Only show user-facing errors for critical issues
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                 this.onError?.('Microphone permission denied. Please enable microphone access.');
             } else if (event.error === 'network') {
                 this.onError?.('Network error. Please check your internet connection.');
+            } else if (event.error === 'no-speech') {
+                // Don't show error for no-speech, it's normal behavior
+                Utils.log('No speech detected, continuing to listen...');
+            } else if (event.error === 'audio-capture') {
+                this.onError?.('Microphone access error. Please check your audio settings.');
             } else {
-                this.onError?.(`Speech recognition error: ${event.error}`);
+                // For other errors, log but don't always notify user
+                Utils.log(`Speech recognition error (${event.error}), continuing...`);
             }
 
             this.stopListening();
@@ -140,15 +160,24 @@ class VoiceProcessor {
             Utils.log('Speech recognition ended');
             this.isListening = false;
             this.stopVoiceLevelMonitoring();
+
+            // Clear any pending silence timeout
+            if (this.silenceTimeout) {
+                clearTimeout(this.silenceTimeout);
+                this.silenceTimeout = null;
+            }
+
             this.updateStatus('ready');
 
-            // Auto-restart if configured for continuous listening
-            if (window.configManager?.get('autoListen')) {
+            // Auto-restart if configured for continuous listening and not currently processing
+            if (window.configManager?.get('autoListen') && !this.isSpeaking) {
+                Utils.log('Auto-restarting speech recognition...');
                 setTimeout(() => {
-                    if (!this.isSpeaking) {
+                    // Double-check we're still not speaking and not already listening
+                    if (!this.isSpeaking && !this.isListening) {
                         this.startListening();
                     }
-                }, 1000);
+                }, 1500); // Slightly longer delay to avoid rapid restarts
             }
         };
     }
@@ -168,18 +197,72 @@ class VoiceProcessor {
     }
 
     /**
+     * Validate if speech is meaningful and should be processed
+     */
+    isValidSpeech(text) {
+        if (!text || typeof text !== 'string') return false;
+
+        const cleanText = text.trim();
+
+        // Check minimum length
+        if (cleanText.length < this.minSpeechLength) {
+            Utils.log(`Speech too short (${cleanText.length} chars): "${cleanText}"`);
+            return false;
+        }
+
+        // Check for minimum word count
+        const words = cleanText.split(/\s+/).filter(word => word.length > 0);
+        if (words.length < this.minWordCount) {
+            Utils.log(`Not enough words (${words.length}): "${cleanText}"`);
+            return false;
+        }
+
+        // Filter out common noise patterns
+        const noisePatterns = [
+            /^(uh|um|ah|eh|mm|hmm)$/i,
+            /^[.,;:!?]+$/,
+            /^\s*$/,
+            /^[a-z]$/i, // Single letters
+            /^(the|a|an|and|or|but|in|on|at|to|for|of|with|by)$/i // Common stop words alone
+        ];
+
+        for (const pattern of noisePatterns) {
+            if (pattern.test(cleanText)) {
+                Utils.log(`Speech matches noise pattern: "${cleanText}"`);
+                return false;
+            }
+        }
+
+        // Check if it's mostly punctuation or special characters
+        const letterCount = (cleanText.match(/[a-zA-Z]/g) || []).length;
+        const letterPercentage = letterCount / cleanText.length;
+        if (letterPercentage < 0.3) {
+            Utils.log(`Too few letters (${Math.round(letterPercentage * 100)}%): "${cleanText}"`);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Process final speech result
      */
     async processFinalResult(text) {
-        if (!text.trim()) return;
+        // Robust validation before processing
+        if (!this.isValidSpeech(text)) {
+            Utils.log('Invalid speech detected, ignoring');
+            this.updateStatus('ready');
+            return;
+        }
 
-        Utils.log(`Processing speech result: ${text}`);
+        const cleanText = text.trim();
+        Utils.log(`Processing valid speech result: "${cleanText}"`);
         this.stopListening();
         this.updateStatus('processing');
 
         try {
             // Send to n8n
-            const response = await window.n8nClient.sendWithRetry(text);
+            const response = await window.n8nClient.sendWithRetry(cleanText);
 
             if (response?.text) {
                 Utils.log(`Received n8n response: ${response.text.substring(0, 100)}...`);
@@ -188,12 +271,14 @@ class VoiceProcessor {
                 await this.speak("I received your message but got no response.");
             }
 
-            this.onResult?.(text, response);
+            this.onResult?.(cleanText, response);
 
         } catch (error) {
             const errorMessage = Utils.getErrorMessage(error);
             Utils.log(`Error processing speech: ${errorMessage}`, 'error');
-            await this.speak(`Sorry, I encountered an error: ${errorMessage}`);
+
+            // Only show error messages for valid speech attempts
+            await this.speak(`Sorry, I encountered an error processing your request.`);
             this.onError?.(errorMessage);
         }
 

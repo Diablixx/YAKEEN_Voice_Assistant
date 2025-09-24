@@ -125,6 +125,10 @@ class N8nClient {
                 responseText = data.response;
             } else if (data.message) {
                 responseText = data.message;
+            } else if (data.output) {
+                responseText = data.output;
+            } else if (Array.isArray(data) && data.length > 0 && data[0].output) {
+                responseText = data[0].output;
             } else {
                 responseText = JSON.stringify(data);
             }

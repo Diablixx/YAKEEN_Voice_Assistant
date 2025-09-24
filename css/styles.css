@@ -167,6 +167,10 @@ body {
     border-radius: 15px;
     overflow: hidden;
     backdrop-filter: blur(10px);
+    display: block !important; /* Force display on all devices */
+    visibility: visible !important; /* Ensure visibility on mobile */
+    -webkit-transform: translateZ(0); /* Force hardware acceleration on iOS */
+    transform: translateZ(0);
 }
 
 .conversation-scroll {
@@ -535,12 +539,54 @@ body {
     }
 
     .conversation-container {
-        height: 250px;
-        max-width: 380px;
+        height: 250px !important;
+        max-width: 380px !important;
+        width: 95% !important;
+        display: block !important;
+        visibility: visible !important;
     }
 
     .voice-level-container {
         width: 250px;
+    }
+}
+
+/* General Mobile Fixes for Conversation Display */
+@media screen and (max-width: 768px) {
+    .conversation-container {
+        width: 95% !important;
+        height: 180px !important;
+        margin-bottom: 20px !important;
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        z-index: 1 !important;
+    }
+
+    .conversation-scroll {
+        display: block !important;
+        height: 100% !important;
+        overflow-y: auto !important;
+    }
+
+    .main-content {
+        padding: 20px 10px !important;
+    }
+}
+
+/* iPhone Specific Safari Fixes */
+@media screen and (max-width: 430px) {
+    .conversation-container {
+        width: 95% !important;
+        height: 160px !important;
+        min-height: 160px !important;
+        margin: 0 auto 20px auto !important;
+        display: block !important;
+        visibility: visible !important;
+        -webkit-appearance: none !important;
+        background: rgba(255, 255, 255, 0.08) !important;
+        border: 2px solid rgba(255, 255, 255, 0.2) !important;
     }
 }
 
@@ -565,9 +611,11 @@ body {
     }
 
     .conversation-container {
-        width: 300px;
-        height: 150px;
-        margin: 0 15px 15px;
+        width: 300px !important;
+        height: 120px !important;
+        margin: 0 15px 15px !important;
+        display: block !important;
+        visibility: visible !important;
     }
 
     .controls {

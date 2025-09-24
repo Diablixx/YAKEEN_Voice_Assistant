@@ -1,6 +1,6 @@
 /**
- * Voice Processing System
- * Handles speech recognition and synthesis using Web Speech API
+ * Simplified Voice Processing System
+ * One-shot listening: starts automatically, listens for one sentence, processes, then stops
  */
 
 class VoiceProcessor {
@@ -15,20 +15,13 @@ class VoiceProcessor {
         this.microphone = null;
         this.voiceLevelData = null;
 
-        // Speech recognition settings
+        // Simple settings
         this.silenceThreshold = 2000; // 2 seconds of silence to stop
         this.minSpeechDuration = 500; // Minimum speech duration
         this.minSpeechLength = 3; // Minimum characters for valid speech
-        this.minWordCount = 1; // Minimum words for valid speech
         this.lastSpeechTime = 0;
         this.speechStartTime = 0;
         this.silenceTimeout = null;
-
-        // Feedback prevention
-        this.isAISpeaking = false;
-        this.preventFeedback = false;
-        this.lastAIResponse = null;
-        this.feedbackPreventionTimeout = null;
 
         // Voice level monitoring
         this.voiceLevelInterval = null;
@@ -47,7 +40,6 @@ class VoiceProcessor {
      * Initialize speech recognition
      */
     initializeRecognition() {
-        // Check for speech recognition support
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
         if (!SpeechRecognition) {
@@ -59,7 +51,7 @@ class VoiceProcessor {
         this.setupRecognitionConfig();
         this.setupRecognitionEvents();
 
-        Utils.log('Speech recognition initialized');
+        Utils.log('Speech recognition initialized for one-shot listening');
         return true;
     }
 
@@ -81,19 +73,13 @@ class VoiceProcessor {
         let finalTranscript = '';
 
         this.recognition.onstart = () => {
-            Utils.log('Speech recognition started');
+            Utils.log('One-shot speech recognition started');
             this.isListening = true;
             this.updateStatus('listening');
             this.startVoiceLevelMonitoring();
         };
 
         this.recognition.onresult = (event) => {
-            // IMMEDIATE FEEDBACK CHECK
-            if (this.preventFeedback || this.isAISpeaking || this.isSpeaking) {
-                Utils.log('FEEDBACK PREVENTION: Blocking speech recognition result during AI speaking');
-                return;
-            }
-
             interimTranscript = '';
             finalTranscript = '';
 
@@ -107,14 +93,7 @@ class VoiceProcessor {
                 }
             }
 
-            // DOUBLE CHECK - Block any AI-sounding responses
-            const allText = (finalTranscript + ' ' + interimTranscript).trim();
-            if (this.lastAIResponse && allText.toLowerCase().includes(this.lastAIResponse.toLowerCase().substring(0, 10))) {
-                Utils.log('FEEDBACK DETECTED in onresult - blocking processing');
-                return;
-            }
-
-            // Update speech timing only if we have meaningful content
+            // Update speech timing
             const hasContent = finalTranscript.trim() || interimTranscript.trim();
             if (hasContent) {
                 this.lastSpeechTime = Date.now();
@@ -129,26 +108,16 @@ class VoiceProcessor {
                 this.silenceTimeout = null;
             }
 
-            // Process final results only if they pass validation
+            // Process final results
             if (finalTranscript.trim()) {
                 const cleanText = finalTranscript.trim();
-                Utils.log(`Final transcript received: "${cleanText}"`);
-
-                // TRIPLE CHECK before processing
-                if (!this.preventFeedback && !this.isAISpeaking && this.isValidSpeech(cleanText)) {
-                    Utils.log(`Valid speech detected, processing: "${cleanText}"`);
-                    this.processFinalResult(cleanText);
-                } else {
-                    Utils.log(`Speech blocked by feedback prevention or validation: "${cleanText}"`);
-                }
-
-                // Reset for next input
-                finalTranscript = '';
-                this.speechStartTime = 0;
+                Utils.log(`Final transcript: ${cleanText}`);
+                this.processFinalResult(cleanText);
+                return; // Stop processing here
             }
 
-            // Only set silence timeout if we have meaningful interim results and feedback prevention is off
-            if (!this.preventFeedback && interimTranscript.trim() && this.isValidSpeech(interimTranscript.trim())) {
+            // Set silence timeout for interim results
+            if (interimTranscript.trim()) {
                 this.silenceTimeout = setTimeout(() => {
                     this.handleSilenceDetected();
                 }, this.silenceThreshold);
@@ -158,53 +127,29 @@ class VoiceProcessor {
         this.recognition.onerror = (event) => {
             Utils.log(`Speech recognition error: ${event.error}`, 'error');
 
-            // Only show user-facing errors for critical issues
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                this.onError?.('Microphone permission denied. Please enable microphone access.');
+                this.onError?.('Microphone permission denied. Please enable microphone access and refresh the page.');
             } else if (event.error === 'network') {
                 this.onError?.('Network error. Please check your internet connection.');
-            } else if (event.error === 'no-speech') {
-                // Don't show error for no-speech, it's normal behavior
-                Utils.log('No speech detected, continuing to listen...');
-            } else if (event.error === 'audio-capture') {
-                this.onError?.('Microphone access error. Please check your audio settings.');
-            } else {
-                // For other errors, log but don't always notify user
-                Utils.log(`Speech recognition error (${event.error}), continuing...`);
+            } else if (event.error !== 'no-speech') {
+                this.onError?.(`Speech recognition error: ${event.error}`);
             }
 
             this.stopListening();
         };
 
         this.recognition.onend = () => {
-            Utils.log('Speech recognition ended');
+            Utils.log('Speech recognition ended - One-shot complete');
             this.isListening = false;
             this.stopVoiceLevelMonitoring();
 
-            // Clear any pending silence timeout
             if (this.silenceTimeout) {
                 clearTimeout(this.silenceTimeout);
                 this.silenceTimeout = null;
             }
 
             this.updateStatus('ready');
-
-            // Auto-restart if configured for continuous listening and safe to do so
-            if (window.configManager?.get('autoListen') && !this.isSpeaking) {
-                Utils.log('Auto-restarting speech recognition...');
-                setTimeout(() => {
-                    // Triple-check: not speaking, not listening, and synthesis is not active
-                    if (!this.isSpeaking &&
-                        !this.isListening &&
-                        !this.synthesis.speaking &&
-                        !this.synthesis.pending) {
-                        Utils.log('Safe to restart recognition');
-                        this.startListening();
-                    } else {
-                        Utils.log('Not safe to restart recognition - speech synthesis still active');
-                    }
-                }, 3000); // Increased to 3 seconds for maximum safety
-            }
+            // NO AUTO-RESTART - User must manually restart
         };
     }
 
@@ -215,15 +160,14 @@ class VoiceProcessor {
         const speechDuration = Date.now() - this.speechStartTime;
         Utils.log(`Silence detected after ${speechDuration}ms of speech`);
 
-        // If we had sufficient speech, we're done
         if (speechDuration >= this.minSpeechDuration) {
-            Utils.log('Sufficient speech detected, processing...');
-            // The final result should already be processed
+            Utils.log('Sufficient speech detected, stopping recognition');
+            this.stopListening();
         }
     }
 
     /**
-     * Validate if speech is meaningful and should be processed
+     * Validate if speech is meaningful
      */
     isValidSpeech(text) {
         if (!text || typeof text !== 'string') return false;
@@ -232,24 +176,23 @@ class VoiceProcessor {
 
         // Check minimum length
         if (cleanText.length < this.minSpeechLength) {
-            Utils.log(`Speech too short (${cleanText.length} chars): "${cleanText}"`);
+            Utils.log(`Speech too short: "${cleanText}"`);
             return false;
         }
 
         // Check for minimum word count
         const words = cleanText.split(/\s+/).filter(word => word.length > 0);
-        if (words.length < this.minWordCount) {
-            Utils.log(`Not enough words (${words.length}): "${cleanText}"`);
+        if (words.length < 1) {
+            Utils.log(`Not enough words: "${cleanText}"`);
             return false;
         }
 
-        // Filter out common noise patterns
+        // Filter out noise patterns
         const noisePatterns = [
             /^(uh|um|ah|eh|mm|hmm)$/i,
             /^[.,;:!?]+$/,
             /^\s*$/,
-            /^[a-z]$/i, // Single letters
-            /^(the|a|an|and|or|but|in|on|at|to|for|of|with|by)$/i // Common stop words alone
+            /^[a-z]$/i
         ];
 
         for (const pattern of noisePatterns) {
@@ -259,52 +202,16 @@ class VoiceProcessor {
             }
         }
 
-        // Filter out AI response patterns to prevent feedback loops
-        const aiResponsePatterns = [
-            /^(my name is|i am|i'm|hello[!,.\s]* i'm|hi[!,.\s]* i'm)/i,
-            /^(i'm here and ready|how can i help|how can i assist)/i,
-            /^(sorry[!,.\s]* i|i apologize|i don't understand)/i,
-            /^(i'm an ai|i'm a language model|as an ai)/i,
-            /^(let me help|i can help|here's what i)/i,
-            /^(based on|according to|i think|in my opinion)/i,
-            /^(thank you for|thanks for asking|you're welcome)/i
-        ];
-
-        for (const pattern of aiResponsePatterns) {
-            if (pattern.test(cleanText)) {
-                Utils.log(`Speech matches AI response pattern, likely feedback: "${cleanText}"`);
-                return false;
-            }
-        }
-
-        // Check if it's mostly punctuation or special characters
-        const letterCount = (cleanText.match(/[a-zA-Z]/g) || []).length;
-        const letterPercentage = letterCount / cleanText.length;
-        if (letterPercentage < 0.3) {
-            Utils.log(`Too few letters (${Math.round(letterPercentage * 100)}%): "${cleanText}"`);
-            return false;
-        }
-
         return true;
     }
 
     /**
-     * Process final speech result
+     * Process final speech result (one-shot)
      */
     async processFinalResult(text) {
-        // CRITICAL: Check if we're in feedback prevention mode
-        if (this.preventFeedback || this.isAISpeaking) {
-            Utils.log('FEEDBACK PREVENTION: Ignoring speech during AI speaking phase');
-            return;
-        }
+        // Stop listening immediately - one-shot only
+        this.stopListening();
 
-        // Check if this matches our last AI response (feedback detection)
-        if (this.lastAIResponse && text.toLowerCase().includes(this.lastAIResponse.toLowerCase().substring(0, 20))) {
-            Utils.log('FEEDBACK DETECTED: Speech matches recent AI response, ignoring');
-            return;
-        }
-
-        // Robust validation before processing
         if (!this.isValidSpeech(text)) {
             Utils.log('Invalid speech detected, ignoring');
             this.updateStatus('ready');
@@ -312,11 +219,7 @@ class VoiceProcessor {
         }
 
         const cleanText = text.trim();
-        Utils.log(`Processing valid speech result: "${cleanText}"`);
-
-        // IMMEDIATELY enable feedback prevention
-        this.preventFeedback = true;
-        this.stopListening();
+        Utils.log(`Processing one-shot speech: "${cleanText}"`);
         this.updateStatus('processing');
 
         try {
@@ -325,10 +228,6 @@ class VoiceProcessor {
 
             if (response?.text) {
                 Utils.log(`Received n8n response: ${response.text.substring(0, 100)}...`);
-
-                // Store the response for feedback detection
-                this.lastAIResponse = response.text.trim();
-
                 await this.speak(response.text);
             } else {
                 await this.speak("I received your message but got no response.");
@@ -339,36 +238,34 @@ class VoiceProcessor {
         } catch (error) {
             const errorMessage = Utils.getErrorMessage(error);
             Utils.log(`Error processing speech: ${errorMessage}`, 'error');
-
-            // Only show error messages for valid speech attempts
             await this.speak(`Sorry, I encountered an error processing your request.`);
             this.onError?.(errorMessage);
         }
 
         this.updateStatus('ready');
+        // ONE-SHOT COMPLETE - No restart, user must manually restart
     }
 
     /**
-     * Start listening for speech
+     * Start one-shot listening
      */
     async startListening() {
         if (this.isListening || !this.recognition) return false;
 
         try {
-            // Request microphone permission
+            Utils.log('Starting one-shot listening...');
             await this.requestMicrophonePermission();
-
             this.recognition.start();
             return true;
         } catch (error) {
             Utils.log(`Failed to start listening: ${Utils.getErrorMessage(error)}`, 'error');
-            this.onError?.('Failed to start voice recognition');
+            this.onError?.('Failed to start voice recognition. Please check microphone permissions and refresh.');
             return false;
         }
     }
 
     /**
-     * Stop listening for speech
+     * Stop listening
      */
     stopListening() {
         if (!this.isListening || !this.recognition) return;
@@ -385,28 +282,15 @@ class VoiceProcessor {
     }
 
     /**
-     * Speak text using synthesis
+     * Speak text using synthesis (no auto-restart)
      */
     async speak(text) {
         if (!text?.trim()) return false;
 
         return new Promise((resolve, reject) => {
             try {
-                // AGGRESSIVE FEEDBACK PREVENTION
-                Utils.log('STARTING AI SPEECH - AGGRESSIVE FEEDBACK PREVENTION ACTIVE');
-
-                // Immediately stop ALL speech recognition
-                this.stopListening();
+                // Cancel any ongoing speech
                 this.stopSpeaking();
-
-                // Set all prevention flags
-                this.isAISpeaking = true;
-                this.preventFeedback = true;
-
-                // Clear any existing prevention timeout
-                if (this.feedbackPreventionTimeout) {
-                    clearTimeout(this.feedbackPreventionTimeout);
-                }
 
                 this.currentUtterance = new SpeechSynthesisUtterance(text);
                 this.currentUtterance.rate = window.configManager?.get('voiceSpeed') || 1.0;
@@ -414,64 +298,23 @@ class VoiceProcessor {
                 this.currentUtterance.lang = 'en-US';
 
                 this.currentUtterance.onstart = () => {
-                    Utils.log(`AI SPEAKING: ${text.substring(0, 50)}...`);
-
-                    // FORCE STOP recognition multiple times to be sure
-                    this.stopListening();
-                    this.isListening = false;
-
-                    // Triple-check and force stop if somehow still active
-                    if (this.recognition && this.recognition.abort) {
-                        this.recognition.abort();
-                    }
-
+                    Utils.log(`Speaking: ${text.substring(0, 50)}...`);
                     this.isSpeaking = true;
-                    this.isAISpeaking = true;
                     this.updateStatus('speaking');
                 };
 
                 this.currentUtterance.onend = () => {
-                    Utils.log('AI FINISHED SPEAKING - Maintaining feedback prevention');
+                    Utils.log('Finished speaking - One-shot complete');
                     this.isSpeaking = false;
-                    this.isAISpeaking = false;
                     this.updateStatus('ready');
-
-                    // EXTENDED DELAY - Keep feedback prevention active for much longer
-                    this.feedbackPreventionTimeout = setTimeout(() => {
-                        Utils.log('DISABLING FEEDBACK PREVENTION - Safe to listen again');
-                        this.preventFeedback = false;
-
-                        // Only restart if configured and completely safe
-                        if (window.configManager?.get('autoListen') &&
-                            !this.isListening &&
-                            !this.isSpeaking &&
-                            !this.isAISpeaking &&
-                            !this.synthesis.speaking &&
-                            !this.synthesis.pending) {
-                            Utils.log('SAFE TO RESTART RECOGNITION');
-                            this.startListening();
-                        } else {
-                            Utils.log('NOT SAFE TO RESTART - keeping recognition off');
-                        }
-                    }, 5000); // 5 SECOND DELAY - Much longer for safety
-
+                    // NO AUTO-RESTART - User must manually start new session
                     resolve(true);
                 };
 
                 this.currentUtterance.onerror = (event) => {
                     Utils.log(`Speech synthesis error: ${event.error}`, 'error');
                     this.isSpeaking = false;
-                    this.isAISpeaking = false;
                     this.updateStatus('ready');
-
-                    // Even on error, maintain feedback prevention briefly
-                    this.feedbackPreventionTimeout = setTimeout(() => {
-                        this.preventFeedback = false;
-                        if (window.configManager?.get('autoListen') && !this.isListening) {
-                            this.startListening();
-                        }
-                    }, 3000);
-
                     reject(new Error(`Speech synthesis error: ${event.error}`));
                 };
 
@@ -480,8 +323,6 @@ class VoiceProcessor {
             } catch (error) {
                 Utils.log(`Failed to speak: ${Utils.getErrorMessage(error)}`, 'error');
                 this.isSpeaking = false;
-                this.isAISpeaking = false;
-                this.preventFeedback = false;
                 reject(error);
             }
         });
@@ -491,25 +332,11 @@ class VoiceProcessor {
      * Stop speaking
      */
     stopSpeaking() {
-        try {
-            // Cancel all speech synthesis
+        if (this.synthesis.speaking) {
             this.synthesis.cancel();
-
-            // Force clear the synthesis queue
-            if (this.synthesis.pending) {
-                this.synthesis.cancel();
-            }
-
-            // Reset state
-            this.isSpeaking = false;
-            this.currentUtterance = null;
-
-            Utils.log('Speech synthesis stopped and cleared');
-        } catch (error) {
-            Utils.log(`Error stopping speech synthesis: ${Utils.getErrorMessage(error)}`, 'error');
-            this.isSpeaking = false;
-            this.currentUtterance = null;
         }
+        this.isSpeaking = false;
+        this.currentUtterance = null;
     }
 
     /**
@@ -518,7 +345,7 @@ class VoiceProcessor {
     async requestMicrophonePermission() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop()); // Stop the stream, we just needed permission
+            stream.getTracks().forEach(track => track.stop());
             return true;
         } catch (error) {
             Utils.log(`Microphone permission denied: ${Utils.getErrorMessage(error)}`, 'error');
@@ -594,13 +421,6 @@ class VoiceProcessor {
     }
 
     /**
-     * Get available voices
-     */
-    getAvailableVoices() {
-        return this.synthesis.getVoices();
-    }
-
-    /**
      * Check if voice recognition is supported
      */
     isSupported() {
@@ -627,21 +447,10 @@ class VoiceProcessor {
         this.stopSpeaking();
         this.stopVoiceLevelMonitoring();
 
-        // Clear all timeouts
         if (this.silenceTimeout) {
             clearTimeout(this.silenceTimeout);
             this.silenceTimeout = null;
         }
-
-        if (this.feedbackPreventionTimeout) {
-            clearTimeout(this.feedbackPreventionTimeout);
-            this.feedbackPreventionTimeout = null;
-        }
-
-        // Reset all feedback prevention flags
-        this.isAISpeaking = false;
-        this.preventFeedback = false;
-        this.lastAIResponse = null;
     }
 }
 

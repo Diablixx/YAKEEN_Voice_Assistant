@@ -46,10 +46,11 @@ class VoiceAssistantApp {
             this.isInitialized = true;
             Utils.log('Voice Assistant App initialized successfully');
 
-            // Start listening immediately if configured
-            if (window.configManager.get('autoListen')) {
-                setTimeout(() => this.startListening(), 1000);
-            }
+            // Auto-start one-shot listening on page load
+            setTimeout(() => {
+                Utils.log('Auto-starting one-shot listening...');
+                this.startListening();
+            }, 1000);
 
         } catch (error) {
             Utils.log(`Failed to initialize app: ${Utils.getErrorMessage(error)}`, 'error');
@@ -247,22 +248,26 @@ class VoiceAssistantApp {
             this.elements.voiceVisualizer.className = `voice-visualizer ${status}`;
         }
 
-        // Update button text
+        // Update button text for one-shot behavior
         if (this.elements.listeningText) {
             switch (status) {
                 case 'listening':
-                    this.elements.listeningText.textContent = 'Stop Listening';
+                    this.elements.listeningText.textContent = 'Listening...';
                     this.elements.toggleListening.classList.add('active');
+                    this.elements.toggleListening.disabled = true; // Disable during listening
                     break;
                 case 'processing':
                     this.elements.listeningText.textContent = 'Processing...';
+                    this.elements.toggleListening.disabled = true; // Keep disabled
                     break;
                 case 'speaking':
                     this.elements.listeningText.textContent = 'Speaking...';
+                    this.elements.toggleListening.disabled = true; // Keep disabled
                     break;
                 default:
-                    this.elements.listeningText.textContent = 'Start Listening';
+                    this.elements.listeningText.textContent = 'Ask Another Question';
                     this.elements.toggleListening.classList.remove('active');
+                    this.elements.toggleListening.disabled = false; // Enable for new question
                     break;
             }
         }
@@ -389,14 +394,14 @@ class VoiceAssistantApp {
         if (this.elements.conversationScroll) {
             this.elements.conversationScroll.innerHTML = `
                 <div class="conversation-welcome">
-                    <p>Welcome! Start speaking to begin the conversation.</p>
+                    <p>Welcome! I'm listening for your question...</p>
                 </div>
             `;
         }
     }
 
     /**
-     * Toggle listening state
+     * Start a new one-shot listening session
      */
     async toggleListening() {
         if (!window.configManager.isConfigured()) {
@@ -410,11 +415,8 @@ class VoiceAssistantApp {
             return;
         }
 
-        if (window.voiceProcessor.isListening) {
-            this.stopListening();
-        } else {
-            await this.startListening();
-        }
+        // Always start listening (one-shot behavior)
+        await this.startListening();
     }
 
     /**
@@ -523,13 +525,11 @@ class VoiceAssistantApp {
                 this.showMessage('Settings saved successfully!', 'success');
                 this.closeSettings();
 
-                // Start auto-listening if this was the first setup
+                // Start one-shot listening if this was the first setup
                 if (this.isFirstRun) {
                     this.isFirstRun = false;
                     setTimeout(() => {
-                        if (window.configManager.get('autoListen')) {
-                            this.startListening();
-                        }
+                        this.startListening();
                     }, 1000);
                 }
             } else {

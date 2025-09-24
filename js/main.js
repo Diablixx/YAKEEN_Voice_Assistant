@@ -79,7 +79,9 @@ class VoiceAssistantApp {
             loadingOverlay: document.getElementById('loadingOverlay'),
             loadingText: document.getElementById('loadingText'),
             debugPanel: document.getElementById('debugPanel'),
-            debugLog: document.getElementById('debugLog')
+            debugLog: document.getElementById('debugLog'),
+            conversationContainer: document.getElementById('conversationContainer'),
+            conversationScroll: document.getElementById('conversationScroll')
         };
     }
 
@@ -288,6 +290,12 @@ class VoiceAssistantApp {
     handleVoiceResult(transcript, response) {
         Utils.log(`Voice result - Transcript: ${transcript}`);
 
+        // Add messages to conversation display
+        this.addMessage('user', transcript);
+        if (response?.text) {
+            this.addMessage('assistant', response.text);
+        }
+
         // Visual feedback
         Utils.vibrate([100, 50, 100]);
     }
@@ -299,6 +307,92 @@ class VoiceAssistantApp {
         Utils.log(`Voice error: ${error}`, 'error');
         this.showError(error);
         Utils.vibrate(500);
+    }
+
+    /**
+     * Add message to conversation display
+     */
+    addMessage(type, text, timestamp = null) {
+        if (!this.elements.conversationScroll || !text?.trim()) return;
+
+        // Remove welcome message if it exists
+        const welcome = this.elements.conversationScroll.querySelector('.conversation-welcome');
+        if (welcome) {
+            welcome.remove();
+        }
+
+        // Create message element
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `conversation-message message-${type}`;
+
+        const bubbleDiv = document.createElement('div');
+        bubbleDiv.className = 'message-bubble';
+        bubbleDiv.textContent = text.trim();
+
+        const timestampSpan = document.createElement('span');
+        timestampSpan.className = 'message-timestamp';
+        timestampSpan.textContent = timestamp || this.formatTimestamp(new Date());
+
+        messageDiv.appendChild(bubbleDiv);
+        messageDiv.appendChild(timestampSpan);
+
+        // Add to conversation
+        this.elements.conversationScroll.appendChild(messageDiv);
+
+        // Auto-scroll to bottom
+        this.scrollConversationToBottom();
+
+        // Limit conversation history (keep last 50 messages)
+        this.limitConversationHistory();
+    }
+
+    /**
+     * Format timestamp for display
+     */
+    formatTimestamp(date) {
+        return date.toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+    }
+
+    /**
+     * Scroll conversation to bottom
+     */
+    scrollConversationToBottom() {
+        if (this.elements.conversationScroll) {
+            setTimeout(() => {
+                this.elements.conversationScroll.scrollTop = this.elements.conversationScroll.scrollHeight;
+            }, 100);
+        }
+    }
+
+    /**
+     * Limit conversation history to prevent memory issues
+     */
+    limitConversationHistory() {
+        const messages = this.elements.conversationScroll.querySelectorAll('.conversation-message');
+        const maxMessages = 50;
+
+        if (messages.length > maxMessages) {
+            for (let i = 0; i < messages.length - maxMessages; i++) {
+                messages[i].remove();
+            }
+        }
+    }
+
+    /**
+     * Clear conversation display
+     */
+    clearConversation() {
+        if (this.elements.conversationScroll) {
+            this.elements.conversationScroll.innerHTML = `
+                <div class="conversation-welcome">
+                    <p>Welcome! Start speaking to begin the conversation.</p>
+                </div>
+            `;
+        }
     }
 
     /**

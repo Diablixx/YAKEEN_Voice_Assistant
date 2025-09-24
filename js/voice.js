@@ -179,7 +179,7 @@ class VoiceProcessor {
 
         try {
             // Send to n8n
-            const response = await n8nClient.sendWithRetry(text);
+            const response = await window.n8nClient.sendWithRetry(text);
 
             if (response?.text) {
                 Utils.log(`Received n8n response: ${response.text.substring(0, 100)}...`);

@@ -24,6 +24,12 @@ class VoiceProcessor {
         this.speechStartTime = 0;
         this.silenceTimeout = null;
 
+        // Feedback prevention
+        this.isAISpeaking = false;
+        this.preventFeedback = false;
+        this.lastAIResponse = null;
+        this.feedbackPreventionTimeout = null;
+
         // Voice level monitoring
         this.voiceLevelInterval = null;
         this.isMonitoringVoiceLevel = false;
@@ -82,6 +88,12 @@ class VoiceProcessor {
         };
 
         this.recognition.onresult = (event) => {
+            // IMMEDIATE FEEDBACK CHECK
+            if (this.preventFeedback || this.isAISpeaking || this.isSpeaking) {
+                Utils.log('FEEDBACK PREVENTION: Blocking speech recognition result during AI speaking');
+                return;
+            }
+
             interimTranscript = '';
             finalTranscript = '';
 
@@ -93,6 +105,13 @@ class VoiceProcessor {
                 } else {
                     interimTranscript += transcript;
                 }
+            }
+
+            // DOUBLE CHECK - Block any AI-sounding responses
+            const allText = (finalTranscript + ' ' + interimTranscript).trim();
+            if (this.lastAIResponse && allText.toLowerCase().includes(this.lastAIResponse.toLowerCase().substring(0, 10))) {
+                Utils.log('FEEDBACK DETECTED in onresult - blocking processing');
+                return;
             }
 
             // Update speech timing only if we have meaningful content
@@ -115,11 +134,12 @@ class VoiceProcessor {
                 const cleanText = finalTranscript.trim();
                 Utils.log(`Final transcript received: "${cleanText}"`);
 
-                if (this.isValidSpeech(cleanText)) {
+                // TRIPLE CHECK before processing
+                if (!this.preventFeedback && !this.isAISpeaking && this.isValidSpeech(cleanText)) {
                     Utils.log(`Valid speech detected, processing: "${cleanText}"`);
                     this.processFinalResult(cleanText);
                 } else {
-                    Utils.log(`Invalid speech ignored: "${cleanText}"`);
+                    Utils.log(`Speech blocked by feedback prevention or validation: "${cleanText}"`);
                 }
 
                 // Reset for next input
@@ -127,8 +147,8 @@ class VoiceProcessor {
                 this.speechStartTime = 0;
             }
 
-            // Only set silence timeout if we have meaningful interim results
-            if (interimTranscript.trim() && this.isValidSpeech(interimTranscript.trim())) {
+            // Only set silence timeout if we have meaningful interim results and feedback prevention is off
+            if (!this.preventFeedback && interimTranscript.trim() && this.isValidSpeech(interimTranscript.trim())) {
                 this.silenceTimeout = setTimeout(() => {
                     this.handleSilenceDetected();
                 }, this.silenceThreshold);
@@ -272,6 +292,18 @@ class VoiceProcessor {
      * Process final speech result
      */
     async processFinalResult(text) {
+        // CRITICAL: Check if we're in feedback prevention mode
+        if (this.preventFeedback || this.isAISpeaking) {
+            Utils.log('FEEDBACK PREVENTION: Ignoring speech during AI speaking phase');
+            return;
+        }
+
+        // Check if this matches our last AI response (feedback detection)
+        if (this.lastAIResponse && text.toLowerCase().includes(this.lastAIResponse.toLowerCase().substring(0, 20))) {
+            Utils.log('FEEDBACK DETECTED: Speech matches recent AI response, ignoring');
+            return;
+        }
+
         // Robust validation before processing
         if (!this.isValidSpeech(text)) {
             Utils.log('Invalid speech detected, ignoring');
@@ -281,6 +313,9 @@ class VoiceProcessor {
 
         const cleanText = text.trim();
         Utils.log(`Processing valid speech result: "${cleanText}"`);
+
+        // IMMEDIATELY enable feedback prevention
+        this.preventFeedback = true;
         this.stopListening();
         this.updateStatus('processing');
 
@@ -290,6 +325,10 @@ class VoiceProcessor {
 
             if (response?.text) {
                 Utils.log(`Received n8n response: ${response.text.substring(0, 100)}...`);
+
+                // Store the response for feedback detection
+                this.lastAIResponse = response.text.trim();
+
                 await this.speak(response.text);
             } else {
                 await this.speak("I received your message but got no response.");
@@ -353,11 +392,21 @@ class VoiceProcessor {
 
         return new Promise((resolve, reject) => {
             try {
-                // CRITICAL: Stop speech recognition immediately to prevent feedback loop
-                this.stopListening();
+                // AGGRESSIVE FEEDBACK PREVENTION
+                Utils.log('STARTING AI SPEECH - AGGRESSIVE FEEDBACK PREVENTION ACTIVE');
 
-                // Cancel any ongoing speech
+                // Immediately stop ALL speech recognition
+                this.stopListening();
                 this.stopSpeaking();
+
+                // Set all prevention flags
+                this.isAISpeaking = true;
+                this.preventFeedback = true;
+
+                // Clear any existing prevention timeout
+                if (this.feedbackPreventionTimeout) {
+                    clearTimeout(this.feedbackPreventionTimeout);
+                }
 
                 this.currentUtterance = new SpeechSynthesisUtterance(text);
                 this.currentUtterance.rate = window.configManager?.get('voiceSpeed') || 1.0;
@@ -365,30 +414,46 @@ class VoiceProcessor {
                 this.currentUtterance.lang = 'en-US';
 
                 this.currentUtterance.onstart = () => {
-                    Utils.log(`Starting to speak: ${text.substring(0, 50)}...`);
+                    Utils.log(`AI SPEAKING: ${text.substring(0, 50)}...`);
 
-                    // Double-check that recognition is stopped
-                    if (this.isListening) {
-                        Utils.log('Force stopping recognition during speech start');
-                        this.stopListening();
+                    // FORCE STOP recognition multiple times to be sure
+                    this.stopListening();
+                    this.isListening = false;
+
+                    // Triple-check and force stop if somehow still active
+                    if (this.recognition && this.recognition.abort) {
+                        this.recognition.abort();
                     }
 
                     this.isSpeaking = true;
+                    this.isAISpeaking = true;
                     this.updateStatus('speaking');
                 };
 
                 this.currentUtterance.onend = () => {
-                    Utils.log('Finished speaking');
+                    Utils.log('AI FINISHED SPEAKING - Maintaining feedback prevention');
                     this.isSpeaking = false;
+                    this.isAISpeaking = false;
                     this.updateStatus('ready');
 
-                    // Auto-restart listening with longer delay to prevent feedback
-                    setTimeout(() => {
-                        if (window.configManager?.get('autoListen') && !this.isListening && !this.isSpeaking) {
-                            Utils.log('Auto-restarting recognition after speech ended');
+                    // EXTENDED DELAY - Keep feedback prevention active for much longer
+                    this.feedbackPreventionTimeout = setTimeout(() => {
+                        Utils.log('DISABLING FEEDBACK PREVENTION - Safe to listen again');
+                        this.preventFeedback = false;
+
+                        // Only restart if configured and completely safe
+                        if (window.configManager?.get('autoListen') &&
+                            !this.isListening &&
+                            !this.isSpeaking &&
+                            !this.isAISpeaking &&
+                            !this.synthesis.speaking &&
+                            !this.synthesis.pending) {
+                            Utils.log('SAFE TO RESTART RECOGNITION');
                             this.startListening();
+                        } else {
+                            Utils.log('NOT SAFE TO RESTART - keeping recognition off');
                         }
-                    }, 2000); // Increased delay to 2 seconds for safety
+                    }, 5000); // 5 SECOND DELAY - Much longer for safety
 
                     resolve(true);
                 };
@@ -396,14 +461,16 @@ class VoiceProcessor {
                 this.currentUtterance.onerror = (event) => {
                     Utils.log(`Speech synthesis error: ${event.error}`, 'error');
                     this.isSpeaking = false;
+                    this.isAISpeaking = false;
                     this.updateStatus('ready');
 
-                    // Restart listening after error if configured
-                    setTimeout(() => {
+                    // Even on error, maintain feedback prevention briefly
+                    this.feedbackPreventionTimeout = setTimeout(() => {
+                        this.preventFeedback = false;
                         if (window.configManager?.get('autoListen') && !this.isListening) {
                             this.startListening();
                         }
-                    }, 1000);
+                    }, 3000);
 
                     reject(new Error(`Speech synthesis error: ${event.error}`));
                 };
@@ -413,6 +480,8 @@ class VoiceProcessor {
             } catch (error) {
                 Utils.log(`Failed to speak: ${Utils.getErrorMessage(error)}`, 'error');
                 this.isSpeaking = false;
+                this.isAISpeaking = false;
+                this.preventFeedback = false;
                 reject(error);
             }
         });
@@ -558,9 +627,21 @@ class VoiceProcessor {
         this.stopSpeaking();
         this.stopVoiceLevelMonitoring();
 
+        // Clear all timeouts
         if (this.silenceTimeout) {
             clearTimeout(this.silenceTimeout);
+            this.silenceTimeout = null;
         }
+
+        if (this.feedbackPreventionTimeout) {
+            clearTimeout(this.feedbackPreventionTimeout);
+            this.feedbackPreventionTimeout = null;
+        }
+
+        // Reset all feedback prevention flags
+        this.isAISpeaking = false;
+        this.preventFeedback = false;
+        this.lastAIResponse = null;
     }
 }
 

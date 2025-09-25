@@ -587,6 +587,62 @@ body {
         -webkit-appearance: none !important;
         background: rgba(255, 255, 255, 0.08) !important;
         border: 2px solid rgba(255, 255, 255, 0.2) !important;
+        position: relative !important;
+        z-index: 99 !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+    }
+
+    .conversation-scroll {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        height: 100% !important;
+        width: 100% !important;
+    }
+}
+
+/* NUCLEAR OPTION - Force display on ALL mobile Safari */
+@media screen and (-webkit-min-device-pixel-ratio: 2) {
+    #conversationContainer {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        width: 90% !important;
+        height: 150px !important;
+        background: red !important; /* DEBUG: Make it clearly visible */
+        border: 3px solid lime !important; /* DEBUG: Obvious border */
+        z-index: 9999 !important;
+        margin: 20px auto !important;
+    }
+
+    #conversationScroll {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        height: 100% !important;
+        width: 100% !important;
+        background: blue !important; /* DEBUG: Make inner scroll visible */
+    }
+}
+
+/* iPhone 15 Pro Max SPECIFIC targeting */
+@media screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) {
+    .conversation-container,
+    #conversationContainer {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: relative !important;
+        width: 90% !important;
+        height: 200px !important;
+        background: rgba(255, 0, 0, 0.5) !important; /* DEBUG: Red background */
+        border: 3px solid yellow !important; /* DEBUG: Yellow border */
+        z-index: 99999 !important;
+        margin: 20px auto !important;
+        -webkit-transform: none !important;
+        transform: none !important;
     }
 }
 

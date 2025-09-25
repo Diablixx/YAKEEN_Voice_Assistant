@@ -84,6 +84,24 @@ class VoiceAssistantApp {
             conversationContainer: document.getElementById('conversationContainer'),
             conversationScroll: document.getElementById('conversationScroll')
         };
+
+        // DEBUG: Log conversation container status for iPhone debugging
+        Utils.log('=== CONVERSATION CONTAINER DEBUG ===');
+        Utils.log(`conversationContainer found: ${!!this.elements.conversationContainer}`);
+        Utils.log(`conversationScroll found: ${!!this.elements.conversationScroll}`);
+
+        if (this.elements.conversationContainer) {
+            const rect = this.elements.conversationContainer.getBoundingClientRect();
+            const style = getComputedStyle(this.elements.conversationContainer);
+            Utils.log(`Container rect: ${rect.width}x${rect.height} at ${rect.x},${rect.y}`);
+            Utils.log(`Container display: ${style.display}`);
+            Utils.log(`Container visibility: ${style.visibility}`);
+            Utils.log(`Container opacity: ${style.opacity}`);
+            Utils.log(`User agent: ${navigator.userAgent}`);
+            Utils.log(`Screen dimensions: ${window.screen.width}x${window.screen.height}`);
+            Utils.log(`Viewport dimensions: ${window.innerWidth}x${window.innerHeight}`);
+        }
+        Utils.log('=== END DEBUG ===');
     }
 
     /**
@@ -248,7 +266,7 @@ class VoiceAssistantApp {
             this.elements.voiceVisualizer.className = `voice-visualizer ${status}`;
         }
 
-        // Update button text for one-shot behavior
+        // Update button text for one-shot behavior (no voice output)
         if (this.elements.listeningText) {
             switch (status) {
                 case 'listening':
@@ -258,10 +276,6 @@ class VoiceAssistantApp {
                     break;
                 case 'processing':
                     this.elements.listeningText.textContent = 'Processing...';
-                    this.elements.toggleListening.disabled = true; // Keep disabled
-                    break;
-                case 'speaking':
-                    this.elements.listeningText.textContent = 'Speaking...';
                     this.elements.toggleListening.disabled = true; // Keep disabled
                     break;
                 default:

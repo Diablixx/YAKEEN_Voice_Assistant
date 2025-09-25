@@ -6,10 +6,7 @@
 class VoiceProcessor {
     constructor() {
         this.isListening = false;
-        this.isSpeaking = false;
         this.recognition = null;
-        this.synthesis = window.speechSynthesis;
-        this.currentUtterance = null;
         this.audioContext = null;
         this.analyser = null;
         this.microphone = null;
@@ -206,7 +203,7 @@ class VoiceProcessor {
     }
 
     /**
-     * Process final speech result (one-shot)
+     * Process final speech result (one-shot, text response only)
      */
     async processFinalResult(text) {
         // Stop listening immediately - one-shot only
@@ -228,22 +225,23 @@ class VoiceProcessor {
 
             if (response?.text) {
                 Utils.log(`Received n8n response: ${response.text.substring(0, 100)}...`);
-                await this.speak(response.text);
+                // NO VOICE - Just pass the text response to UI
+                this.onResult?.(cleanText, response);
             } else {
-                await this.speak("I received your message but got no response.");
+                // NO VOICE - Just pass error message as text
+                this.onResult?.(cleanText, { text: "I received your message but got no response." });
             }
-
-            this.onResult?.(cleanText, response);
 
         } catch (error) {
             const errorMessage = Utils.getErrorMessage(error);
             Utils.log(`Error processing speech: ${errorMessage}`, 'error');
-            await this.speak(`Sorry, I encountered an error processing your request.`);
+            // NO VOICE - Just pass error as text
+            this.onResult?.(cleanText, { text: `Sorry, I encountered an error processing your request.` });
             this.onError?.(errorMessage);
         }
 
         this.updateStatus('ready');
-        // ONE-SHOT COMPLETE - No restart, user must manually restart
+        // ONE-SHOT COMPLETE - Text only, no voice
     }
 
     /**
@@ -281,63 +279,7 @@ class VoiceProcessor {
         }
     }
 
-    /**
-     * Speak text using synthesis (no auto-restart)
-     */
-    async speak(text) {
-        if (!text?.trim()) return false;
-
-        return new Promise((resolve, reject) => {
-            try {
-                // Cancel any ongoing speech
-                this.stopSpeaking();
-
-                this.currentUtterance = new SpeechSynthesisUtterance(text);
-                this.currentUtterance.rate = window.configManager?.get('voiceSpeed') || 1.0;
-                this.currentUtterance.pitch = window.configManager?.get('voicePitch') || 1.0;
-                this.currentUtterance.lang = 'en-US';
-
-                this.currentUtterance.onstart = () => {
-                    Utils.log(`Speaking: ${text.substring(0, 50)}...`);
-                    this.isSpeaking = true;
-                    this.updateStatus('speaking');
-                };
-
-                this.currentUtterance.onend = () => {
-                    Utils.log('Finished speaking - One-shot complete');
-                    this.isSpeaking = false;
-                    this.updateStatus('ready');
-                    // NO AUTO-RESTART - User must manually start new session
-                    resolve(true);
-                };
-
-                this.currentUtterance.onerror = (event) => {
-                    Utils.log(`Speech synthesis error: ${event.error}`, 'error');
-                    this.isSpeaking = false;
-                    this.updateStatus('ready');
-                    reject(new Error(`Speech synthesis error: ${event.error}`));
-                };
-
-                this.synthesis.speak(this.currentUtterance);
-
-            } catch (error) {
-                Utils.log(`Failed to speak: ${Utils.getErrorMessage(error)}`, 'error');
-                this.isSpeaking = false;
-                reject(error);
-            }
-        });
-    }
-
-    /**
-     * Stop speaking
-     */
-    stopSpeaking() {
-        if (this.synthesis.speaking) {
-            this.synthesis.cancel();
-        }
-        this.isSpeaking = false;
-        this.currentUtterance = null;
-    }
+    // NO VOICE SYNTHESIS - REMOVED ALL SPEAKING METHODS
 
     /**
      * Request microphone permission
@@ -433,7 +375,6 @@ class VoiceProcessor {
     getStatus() {
         return {
             isListening: this.isListening,
-            isSpeaking: this.isSpeaking,
             isSupported: this.isSupported(),
             isMonitoringVoiceLevel: this.isMonitoringVoiceLevel
         };
@@ -444,7 +385,6 @@ class VoiceProcessor {
      */
     destroy() {
         this.stopListening();
-        this.stopSpeaking();
         this.stopVoiceLevelMonitoring();
 
         if (this.silenceTimeout) {

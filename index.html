@@ -27,18 +27,18 @@
     <div class="app-container">
         <!-- Header -->
         <header class="header">
-            <h1>Voice Assistant</h1>
+            <h1>Yakeen's Personal Voice Assistant</h1>
             <div class="status-indicator" id="status">Ready</div>
         </header>
 
         <!-- Main Voice Interface -->
         <main class="main-content">
-            <!-- Voice Visualization -->
-            <div class="voice-visualizer" id="voiceVisualizer">
-                <div class="voice-circle">
-                    <div class="voice-pulse"></div>
-                    <div class="voice-core"></div>
-                </div>
+            <!-- Y Logo with Live Animations -->
+            <div class="logo-container" id="logoContainer">
+                <div class="logo-outer-ring"></div>
+                <div class="logo-inner-ring"></div>
+                <div class="logo-y">Y</div>
+                <div class="logo-glow"></div>
             </div>
 
             <!-- Voice Level Indicator -->
@@ -46,14 +46,9 @@
                 <div class="voice-level-bar" id="voiceLevelBar"></div>
             </div>
 
-            <!-- DEBUG: Simple test element for iPhone -->
-            <div style="width: 90%; height: 100px; background: red; border: 3px solid yellow; margin: 20px auto; display: block !important; visibility: visible !important; z-index: 99999;">
-                <p style="color: white; text-align: center; padding: 20px;">iPhone DEBUG TEST - Can you see this red box?</p>
-            </div>
-
             <!-- Conversation Display -->
-            <div class="conversation-container" id="conversationContainer" style="display: block !important; visibility: visible !important; opacity: 1 !important; position: relative !important;">
-                <div class="conversation-scroll" id="conversationScroll" style="display: block !important; visibility: visible !important; opacity: 1 !important;">
+            <div class="conversation-container" id="conversationContainer">
+                <div class="conversation-scroll" id="conversationScroll">
                     <div class="conversation-welcome">
                         <p>Welcome! I'm listening for your question...</p>
                     </div>

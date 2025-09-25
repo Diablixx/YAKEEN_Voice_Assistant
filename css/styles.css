@@ -47,25 +47,24 @@ body {
 
 .status-indicator {
     font-size: 14px;
-    color: #00ff88;
-    opacity: 0.8;
+    color: #4A90E2;
+    opacity: 0.9;
     text-transform: uppercase;
     letter-spacing: 1px;
+    transition: all 0.3s ease;
+    text-shadow: 0 0 10px rgba(74, 144, 226, 0.3);
 }
 
 .status-indicator.listening {
-    color: #ff4444;
-    animation: pulse 2s infinite;
+    color: #5AC8FA;
+    animation: statusPulse 2s infinite;
+    text-shadow: 0 0 15px rgba(90, 200, 250, 0.5);
 }
 
 .status-indicator.processing {
-    color: #ffaa00;
-    animation: pulse 1s infinite;
-}
-
-.status-indicator.speaking {
-    color: #4488ff;
-    animation: pulse 1.5s infinite;
+    color: #007AFF;
+    animation: statusPulse 1s infinite;
+    text-shadow: 0 0 15px rgba(0, 122, 255, 0.5);
 }
 
 /* Main Content */
@@ -78,64 +77,86 @@ body {
     padding: 40px 20px;
 }
 
-/* Voice Visualizer */
-.voice-visualizer {
+/* Y Logo with Live Animations */
+.logo-container {
     position: relative;
-    width: 200px;
-    height: 200px;
+    width: 280px;
+    height: 280px;
     margin-bottom: 40px;
-}
-
-.voice-circle {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(0, 255, 136, 0.2) 0%, rgba(0, 255, 136, 0.05) 70%, transparent 100%);
-    border: 2px solid rgba(0, 255, 136, 0.3);
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-.voice-pulse {
+.logo-outer-ring {
     position: absolute;
     width: 100%;
     height: 100%;
     border-radius: 50%;
-    border: 2px solid rgba(0, 255, 136, 0.6);
-    opacity: 0;
-    animation: voicePulse 2s infinite;
+    border: 3px solid rgba(74, 144, 226, 0.3);
+    animation: logoBreathing 4s ease-in-out infinite;
 }
 
-.voice-core {
-    width: 60px;
-    height: 60px;
+.logo-inner-ring {
+    position: absolute;
+    width: 85%;
+    height: 85%;
     border-radius: 50%;
-    background: radial-gradient(circle, #00ff88 0%, #00cc66 100%);
-    box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
-    transition: all 0.3s ease;
+    border: 2px solid rgba(90, 200, 250, 0.4);
+    animation: logoBreathing 3s ease-in-out infinite reverse;
 }
 
-.voice-visualizer.active .voice-pulse {
-    animation: voicePulseActive 1s infinite;
+.logo-glow {
+    position: absolute;
+    width: 90%;
+    height: 90%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(74, 144, 226, 0.1) 0%, rgba(90, 200, 250, 0.05) 50%, transparent 70%);
+    animation: logoGlow 6s ease-in-out infinite;
 }
 
-.voice-visualizer.active .voice-core {
-    transform: scale(1.2);
-    box-shadow: 0 0 30px rgba(0, 255, 136, 0.8);
+.logo-y {
+    position: relative;
+    font-size: 120px;
+    font-weight: 300;
+    color: #4A90E2;
+    text-shadow:
+        0 0 20px rgba(74, 144, 226, 0.6),
+        0 0 40px rgba(90, 200, 250, 0.4),
+        0 0 60px rgba(0, 122, 255, 0.2);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    animation: logoTextPulse 5s ease-in-out infinite;
+    z-index: 10;
+    transition: all 0.5s ease;
 }
 
-.voice-visualizer.processing .voice-core {
-    background: radial-gradient(circle, #ffaa00 0%, #ff8800 100%);
-    box-shadow: 0 0 20px rgba(255, 170, 0, 0.5);
-    animation: processingPulse 1s infinite;
+/* Logo State Animations */
+.logo-container.listening .logo-outer-ring {
+    border-color: #5AC8FA;
+    animation: logoListening 2s ease-in-out infinite;
+    box-shadow: 0 0 30px rgba(90, 200, 250, 0.3);
 }
 
-.voice-visualizer.speaking .voice-core {
-    background: radial-gradient(circle, #4488ff 0%, #2266dd 100%);
-    box-shadow: 0 0 20px rgba(68, 136, 255, 0.5);
-    animation: speakingPulse 1.5s infinite;
+.logo-container.listening .logo-y {
+    color: #5AC8FA;
+    animation: logoTextActive 1.5s ease-in-out infinite;
+    text-shadow:
+        0 0 25px rgba(90, 200, 250, 0.8),
+        0 0 50px rgba(90, 200, 250, 0.5),
+        0 0 75px rgba(90, 200, 250, 0.3);
+}
+
+.logo-container.processing .logo-outer-ring {
+    border-color: #007AFF;
+    animation: logoProcessing 1s linear infinite;
+}
+
+.logo-container.processing .logo-y {
+    color: #007AFF;
+    animation: logoProcessingText 1s ease-in-out infinite;
+    text-shadow:
+        0 0 25px rgba(0, 122, 255, 0.8),
+        0 0 50px rgba(0, 122, 255, 0.5);
 }
 
 /* Voice Level Bar */
@@ -150,27 +171,39 @@ body {
 
 .voice-level-bar {
     height: 100%;
-    background: linear-gradient(90deg, #00ff88 0%, #ffaa00 50%, #ff4444 100%);
+    background: linear-gradient(90deg, #4A90E2 0%, #5AC8FA 50%, #007AFF 100%);
     border-radius: 2px;
     width: 0%;
-    transition: width 0.1s ease;
+    transition: width 0.2s ease;
+    box-shadow: 0 0 10px rgba(74, 144, 226, 0.4);
 }
 
-/* Conversation Display */
+/* Conversation Display - Black with Blue Accents */
 .conversation-container {
     width: 90%;
     max-width: 600px;
     height: 200px;
     margin-bottom: 30px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
+    background: rgba(0, 0, 0, 0.8);
+    border: 2px solid rgba(74, 144, 226, 0.3);
+    border-radius: 20px;
     overflow: hidden;
     backdrop-filter: blur(10px);
-    display: block !important; /* Force display on all devices */
-    visibility: visible !important; /* Ensure visibility on mobile */
-    -webkit-transform: translateZ(0); /* Force hardware acceleration on iOS */
+    display: block !important;
+    visibility: visible !important;
+    -webkit-transform: translateZ(0);
     transform: translateZ(0);
+    box-shadow:
+        0 0 20px rgba(74, 144, 226, 0.2),
+        inset 0 1px 0 rgba(90, 200, 250, 0.1);
+    transition: all 0.3s ease;
+}
+
+.conversation-container:hover {
+    border-color: rgba(74, 144, 226, 0.5);
+    box-shadow:
+        0 0 30px rgba(74, 144, 226, 0.3),
+        inset 0 1px 0 rgba(90, 200, 250, 0.2);
 }
 
 .conversation-scroll {
@@ -195,14 +228,18 @@ body {
 
 .conversation-welcome {
     text-align: center;
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(255, 255, 255, 0.7);
     font-style: italic;
-    padding: 20px;
+    padding: 25px;
+    font-size: 16px;
+    animation: welcomeFade 2s ease-in-out;
 }
 
 .conversation-message {
     margin-bottom: 15px;
-    animation: fadeIn 0.3s ease-in-out;
+    animation: messageSlideIn 0.5s ease-out;
+    opacity: 0;
+    animation-fill-mode: forwards;
 }
 
 .message-user {
@@ -216,30 +253,46 @@ body {
 .message-bubble {
     display: inline-block;
     max-width: 80%;
-    padding: 10px 15px;
-    border-radius: 18px;
-    font-size: 14px;
-    line-height: 1.4;
+    padding: 12px 18px;
+    border-radius: 20px;
+    font-size: 15px;
+    line-height: 1.5;
     word-wrap: break-word;
+    color: #ffffff;
+    transition: all 0.3s ease;
+    position: relative;
 }
 
 .message-user .message-bubble {
-    background: rgba(0, 255, 136, 0.2);
-    border: 1px solid rgba(0, 255, 136, 0.3);
-    color: #ffffff;
+    background: linear-gradient(135deg, rgba(74, 144, 226, 0.8) 0%, rgba(90, 200, 250, 0.6) 100%);
+    border: 1px solid rgba(74, 144, 226, 0.4);
+    box-shadow:
+        0 4px 15px rgba(74, 144, 226, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .message-assistant .message-bubble {
-    background: rgba(68, 136, 255, 0.2);
-    border: 1px solid rgba(68, 136, 255, 0.3);
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.9) 0%, rgba(30, 30, 30, 0.8) 100%);
+    border: 1px solid rgba(90, 200, 250, 0.3);
+    box-shadow:
+        0 4px 15px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(90, 200, 250, 0.1);
     color: #ffffff;
+}
+
+.message-bubble:hover {
+    transform: translateY(-1px);
+    box-shadow:
+        0 6px 20px rgba(74, 144, 226, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .message-timestamp {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 6px;
     display: block;
+    font-weight: 300;
 }
 
 .message-user .message-timestamp {
@@ -289,9 +342,10 @@ body {
 }
 
 .control-btn.active {
-    background: rgba(0, 255, 136, 0.2);
-    border-color: #00ff88;
-    color: #00ff88;
+    background: rgba(74, 144, 226, 0.3);
+    border-color: #4A90E2;
+    color: #4A90E2;
+    box-shadow: 0 0 20px rgba(74, 144, 226, 0.4);
 }
 
 /* Settings Panel */
@@ -354,8 +408,8 @@ body {
 
 .setting-group input[type="url"]:focus {
     outline: none;
-    border-color: #00ff88;
-    box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+    border-color: #4A90E2;
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.3);
 }
 
 .setting-group input[type="range"] {
@@ -401,10 +455,11 @@ body {
     width: 40px;
     height: 40px;
     border: 3px solid rgba(255, 255, 255, 0.2);
-    border-top: 3px solid #00ff88;
+    border-top: 3px solid #4A90E2;
     border-radius: 50%;
     animation: spin 1s linear infinite;
     margin-bottom: 20px;
+    box-shadow: 0 0 15px rgba(74, 144, 226, 0.3);
 }
 
 .loading-text {
@@ -452,6 +507,186 @@ body {
     }
     to {
         opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Y Logo Live Animations */
+@keyframes logoBreathing {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.4;
+        box-shadow: 0 0 20px rgba(74, 144, 226, 0.2);
+    }
+    50% {
+        transform: scale(1.08);
+        opacity: 0.7;
+        box-shadow: 0 0 30px rgba(74, 144, 226, 0.4);
+    }
+}
+
+@keyframes logoGlow {
+    0%, 100% {
+        opacity: 0.3;
+        transform: scale(0.95);
+    }
+    33% {
+        opacity: 0.6;
+        transform: scale(1.02);
+    }
+    66% {
+        opacity: 0.4;
+        transform: scale(0.98);
+    }
+}
+
+@keyframes logoTextPulse {
+    0%, 100% {
+        transform: scale(1);
+        opacity: 0.9;
+        text-shadow:
+            0 0 20px rgba(74, 144, 226, 0.6),
+            0 0 40px rgba(90, 200, 250, 0.4),
+            0 0 60px rgba(0, 122, 255, 0.2);
+    }
+    50% {
+        transform: scale(1.05);
+        opacity: 1;
+        text-shadow:
+            0 0 25px rgba(74, 144, 226, 0.8),
+            0 0 50px rgba(90, 200, 250, 0.6),
+            0 0 75px rgba(0, 122, 255, 0.4);
+    }
+}
+
+@keyframes logoListening {
+    0% {
+        transform: scale(1) rotate(0deg);
+        opacity: 0.6;
+        box-shadow: 0 0 25px rgba(90, 200, 250, 0.3);
+    }
+    25% {
+        transform: scale(1.15) rotate(0.5deg);
+        opacity: 0.8;
+        box-shadow: 0 0 35px rgba(90, 200, 250, 0.5);
+    }
+    50% {
+        transform: scale(1.2) rotate(0deg);
+        opacity: 1;
+        box-shadow: 0 0 45px rgba(90, 200, 250, 0.7);
+    }
+    75% {
+        transform: scale(1.15) rotate(-0.5deg);
+        opacity: 0.8;
+        box-shadow: 0 0 35px rgba(90, 200, 250, 0.5);
+    }
+    100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 0.6;
+        box-shadow: 0 0 25px rgba(90, 200, 250, 0.3);
+    }
+}
+
+@keyframes logoTextActive {
+    0%, 100% {
+        transform: scale(1) translateY(0);
+        opacity: 0.9;
+        text-shadow:
+            0 0 25px rgba(90, 200, 250, 0.8),
+            0 0 50px rgba(90, 200, 250, 0.5),
+            0 0 75px rgba(90, 200, 250, 0.3);
+    }
+    50% {
+        transform: scale(1.08) translateY(-2px);
+        opacity: 1;
+        text-shadow:
+            0 0 30px rgba(90, 200, 250, 1),
+            0 0 60px rgba(90, 200, 250, 0.8),
+            0 0 90px rgba(90, 200, 250, 0.6);
+    }
+}
+
+@keyframes logoProcessing {
+    0% {
+        transform: rotate(0deg) scale(1);
+        opacity: 0.7;
+        box-shadow: 0 0 20px rgba(0, 122, 255, 0.4);
+    }
+    25% {
+        transform: rotate(90deg) scale(1.05);
+        opacity: 0.85;
+        box-shadow: 0 0 30px rgba(0, 122, 255, 0.6);
+    }
+    50% {
+        transform: rotate(180deg) scale(1.1);
+        opacity: 1;
+        box-shadow: 0 0 40px rgba(0, 122, 255, 0.8);
+    }
+    75% {
+        transform: rotate(270deg) scale(1.05);
+        opacity: 0.85;
+        box-shadow: 0 0 30px rgba(0, 122, 255, 0.6);
+    }
+    100% {
+        transform: rotate(360deg) scale(1);
+        opacity: 0.7;
+        box-shadow: 0 0 20px rgba(0, 122, 255, 0.4);
+    }
+}
+
+@keyframes logoProcessingText {
+    0%, 100% {
+        transform: scale(1) rotateY(0deg);
+        opacity: 0.9;
+        text-shadow:
+            0 0 25px rgba(0, 122, 255, 0.8),
+            0 0 50px rgba(0, 122, 255, 0.5);
+    }
+    50% {
+        transform: scale(1.1) rotateY(10deg);
+        opacity: 1;
+        text-shadow:
+            0 0 30px rgba(0, 122, 255, 1),
+            0 0 60px rgba(0, 122, 255, 0.8),
+            0 0 90px rgba(0, 122, 255, 0.6);
+    }
+}
+
+@keyframes statusPulse {
+    0%, 100% {
+        opacity: 0.8;
+        transform: scale(1);
+        text-shadow: 0 0 10px currentColor;
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.05);
+        text-shadow: 0 0 15px currentColor, 0 0 25px currentColor;
+    }
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes welcomeFade {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    50% {
+        opacity: 0.7;
+        transform: translateY(0);
+    }
+    100% {
+        opacity: 0.7;
         transform: translateY(0);
     }
 }
@@ -602,7 +837,7 @@ body {
     }
 }
 
-/* NUCLEAR OPTION - Force display on ALL mobile Safari */
+/* Mobile Safari Optimization */
 @media screen and (-webkit-min-device-pixel-ratio: 2) {
     #conversationContainer {
         display: block !important;
@@ -610,11 +845,14 @@ body {
         opacity: 1 !important;
         position: relative !important;
         width: 90% !important;
-        height: 150px !important;
-        background: red !important; /* DEBUG: Make it clearly visible */
-        border: 3px solid lime !important; /* DEBUG: Obvious border */
-        z-index: 9999 !important;
+        height: 180px !important;
+        background: rgba(0, 0, 0, 0.8) !important;
+        border: 2px solid rgba(74, 144, 226, 0.3) !important;
+        border-radius: 20px !important;
+        z-index: 100 !important;
         margin: 20px auto !important;
+        box-shadow: 0 0 20px rgba(74, 144, 226, 0.2) !important;
+        backdrop-filter: blur(10px) !important;
     }
 
     #conversationScroll {
@@ -623,7 +861,6 @@ body {
         opacity: 1 !important;
         height: 100% !important;
         width: 100% !important;
-        background: blue !important; /* DEBUG: Make inner scroll visible */
     }
 }
 
@@ -637,10 +874,13 @@ body {
         position: relative !important;
         width: 90% !important;
         height: 200px !important;
-        background: rgba(255, 0, 0, 0.5) !important; /* DEBUG: Red background */
-        border: 3px solid yellow !important; /* DEBUG: Yellow border */
-        z-index: 99999 !important;
+        background: rgba(0, 0, 0, 0.8) !important;
+        border: 2px solid rgba(74, 144, 226, 0.3) !important;
+        border-radius: 20px !important;
+        z-index: 100 !important;
         margin: 20px auto !important;
+        box-shadow: 0 0 20px rgba(74, 144, 226, 0.2) !important;
+        backdrop-filter: blur(10px) !important;
         -webkit-transform: none !important;
         transform: none !important;
     }
@@ -767,16 +1007,16 @@ body {
         width: 20px;
         height: 20px;
         border-radius: 50%;
-        background: #00ff88;
+        background: #4A90E2;
         cursor: pointer;
         border: none;
-        box-shadow: 0 2px 6px rgba(0, 255, 136, 0.3);
+        box-shadow: 0 2px 6px rgba(74, 144, 226, 0.4);
     }
 
     /* Optimize button touch targets for iOS */
     .control-btn {
         min-height: 44px;
-        -webkit-tap-highlight-color: rgba(0, 255, 136, 0.2);
+        -webkit-tap-highlight-color: rgba(74, 144, 226, 0.2);
         -webkit-touch-callout: none;
     }
 }
@@ -856,7 +1096,7 @@ body {
 button, .control-btn {
     -webkit-user-select: none;
     -webkit-touch-callout: none;
-    -webkit-tap-highlight-color: rgba(0, 255, 136, 0.2);
+    -webkit-tap-highlight-color: rgba(74, 144, 226, 0.2);
     touch-action: manipulation;
 }
 
